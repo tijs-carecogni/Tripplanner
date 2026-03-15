@@ -6,7 +6,10 @@ A lightweight MindTrip-like travel planner focused on:
 - **Memory development** (learns your likes/dislikes from ratings)
 - **Personalized suggestions** (and custom ideas you can add/rate)
 - **Map + itinerary visualization**
+- **Main location + trip discovery**
 - **Event discovery**
+- **Interleaving flexible stops between hard points**
+- **LLM-based natural-language search**
 - **Route comparison** (driving/cycling/walking, including alternatives where available)
 
 ## Features
@@ -28,16 +31,28 @@ A lightweight MindTrip-like travel planner focused on:
 - Add your own custom suggestions and rate them.
 - Pin suggestions directly as new hard points.
 
-### 4) Dual Visualization
-- **Map view** with hard points, itinerary path, route comparison overlays, and event markers.
-- **Itinerary view** with ordered stops and transit segment estimates.
+### 4) Main Locations, Trips, and Interleaving
+- Search for major locations (POIs) and trip ideas around a city/area.
+- Results can be either:
+  - **interleaved** as flexible stops in the timeline, or
+  - **locked** as hard points.
+- Interleaved locations/trips/events are merged chronologically with hard points in one itinerary.
 
 ### 5) Event Finder
 - Search by city/area, date, and radius.
 - Combines seeded event data with nearby venue discovery.
-- Rate events to improve memory and pin events as hard points.
+- Rate events to improve memory.
+- Add events either as interleaved stops or locked hard points.
 
-### 6) Route Comparison (Google Maps-style concept)
+### 6) LLM-based Search
+- Configure any OpenAI-compatible endpoint + model + API key.
+- Ask natural language queries (e.g. "interleave food spots and evening music between my hard points").
+- LLM returns mixed suggestions (`main-location`, `event`, `trip`) that can be:
+  - interleaved in itinerary,
+  - locked as hard points, or
+  - rated for memory learning.
+
+### 7) Route Comparison (Google Maps-style concept)
 - Compare multiple route profiles: driving, cycling, walking.
 - Support:
   - point-to-point hard point comparison
@@ -64,5 +79,6 @@ Then open:
 
 ## Notes
 
-- Browser `localStorage` is used to persist profile, hard points, memory scores, ratings, and custom suggestions.
+- Browser `localStorage` is used to persist profile, hard points, interleaved stops, memory scores, ratings, and custom suggestions.
+- LLM API key is stored in browser localStorage for convenience in this MVP.
 - External map/routing/geocoding data depends on availability of public services.

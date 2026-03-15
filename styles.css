@@ -94,6 +94,16 @@ label {
   color: #24436b;
 }
 
+.checkbox-inline {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.checkbox-inline input[type="checkbox"] {
+  width: auto;
+}
+
 input,
 select,
 textarea,

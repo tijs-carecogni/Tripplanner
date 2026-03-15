@@ -5,6 +5,12 @@ const ROUTE_COLORS = {
   cycling: "#2b9f4a",
   walking: "#8b5fbf",
 };
+const DEFAULT_LLM_CONFIG = {
+  endpoint: "https://openrouter.ai/api/v1/chat/completions",
+  model: "openai/gpt-4o-mini",
+  apiKey: "",
+  enabled: false,
+};
 
 const SUGGESTION_CATALOG = [
   { id: "s1", title: "Street food tasting walk", city: "Bangkok", tags: ["food", "culture", "walking"], budget: "budget", pace: "balanced", type: "experience", lat: 13.7563, lng: 100.5018, description: "Sample local dishes with a guide in old neighborhoods." },
@@ -33,6 +39,25 @@ const SEED_EVENTS = [
   { id: "e6", title: "Indie film night", city: "Barcelona", date: "2026-07-02", category: "film", venue: "Cine Garden", lat: 41.3851, lng: 2.1734, tags: ["film", "culture", "nightlife"] },
 ];
 
+const SEED_MAIN_LOCATIONS = [
+  { id: "ml1", title: "Eiffel Tower", city: "Paris", lat: 48.8584, lng: 2.2945, category: "landmark", tags: ["landmark", "architecture", "viewpoint"] },
+  { id: "ml2", title: "Louvre Museum", city: "Paris", lat: 48.8606, lng: 2.3376, category: "museum", tags: ["museum", "art", "culture"] },
+  { id: "ml3", title: "Colosseum", city: "Rome", lat: 41.8902, lng: 12.4922, category: "history", tags: ["history", "landmark", "architecture"] },
+  { id: "ml4", title: "Sagrada Familia", city: "Barcelona", lat: 41.4036, lng: 2.1744, category: "architecture", tags: ["architecture", "culture", "landmark"] },
+  { id: "ml5", title: "Brandenburg Gate", city: "Berlin", lat: 52.5163, lng: 13.3777, category: "landmark", tags: ["history", "landmark"] },
+  { id: "ml6", title: "Shibuya Crossing", city: "Tokyo", lat: 35.6595, lng: 139.7005, category: "city-icon", tags: ["city", "nightlife", "photography"] },
+  { id: "ml7", title: "Grand Canal", city: "Venice", lat: 45.44, lng: 12.3155, category: "waterfront", tags: ["relax", "culture", "romantic"] },
+  { id: "ml8", title: "Table Mountain", city: "Cape Town", lat: -33.9628, lng: 18.4098, category: "nature", tags: ["nature", "hiking", "viewpoint"] },
+];
+
+const SEED_TRIP_IDEAS = [
+  { id: "tr1", title: "Versailles day trip", city: "Paris", lat: 48.8049, lng: 2.1204, category: "day-trip", tags: ["history", "architecture", "day-trip"], description: "Palace and gardens with half-day planning." },
+  { id: "tr2", title: "Lake Como scenic train", city: "Milan", lat: 45.8081, lng: 9.0852, category: "scenic-route", tags: ["nature", "train", "trip"], description: "Relaxed full-day lakeside escape." },
+  { id: "tr3", title: "Nikko cultural side trip", city: "Tokyo", lat: 36.7198, lng: 139.6982, category: "day-trip", tags: ["history", "culture", "trip"], description: "Shrines and mountain views with rail access." },
+  { id: "tr4", title: "Sintra castles loop", city: "Lisbon", lat: 38.8029, lng: -9.3817, category: "day-trip", tags: ["architecture", "history", "trip"], description: "UNESCO hill town with palace circuit." },
+  { id: "tr5", title: "Blue Mountains route", city: "Sydney", lat: -33.7128, lng: 150.3119, category: "nature-trip", tags: ["nature", "hiking", "trip"], description: "Lookouts and forest walks outside the city." },
+];
+
 const els = {};
 let map;
 let layers;
@@ -48,9 +73,15 @@ function createDefaultState() {
       interests: [],
     },
     hardPoints: [],
+    plannedStops: [],
     customSuggestions: [],
+    lastPlaces: [],
     lastEvents: [],
+    lastLlmResults: [],
     routeComparison: null,
+    llm: {
+      ...DEFAULT_LLM_CONFIG,
+    },
     memory: {
       itemRatings: {},
       ratingsHistory: [],
@@ -72,8 +103,12 @@ function loadState() {
       profile: { ...defaults.profile, ...(parsed.profile || {}) },
       memory: { ...defaults.memory, ...(parsed.memory || {}) },
       hardPoints: Array.isArray(parsed.hardPoints) ? parsed.hardPoints : [],
+      plannedStops: Array.isArray(parsed.plannedStops) ? parsed.plannedStops : [],
       customSuggestions: Array.isArray(parsed.customSuggestions) ? parsed.customSuggestions : [],
+      lastPlaces: Array.isArray(parsed.lastPlaces) ? parsed.lastPlaces : [],
       lastEvents: Array.isArray(parsed.lastEvents) ? parsed.lastEvents : [],
+      lastLlmResults: Array.isArray(parsed.lastLlmResults) ? parsed.lastLlmResults : [],
+      llm: { ...DEFAULT_LLM_CONFIG, ...(parsed.llm || {}) },
     };
   } catch (error) {
     console.error("Unable to load state:", error);
@@ -141,10 +176,28 @@ function bindElements() {
     "routeOrigin",
     "routeDestination",
     "routeResults",
+    "placeForm",
+    "placeLocation",
+    "placeMode",
+    "placeRadius",
+    "placeInterleaveTime",
+    "placeResults",
+    "llmConfigForm",
+    "llmApiEndpoint",
+    "llmModel",
+    "llmApiKey",
+    "llmEnabled",
+    "llmSearchForm",
+    "llmQuery",
+    "llmSearchLocation",
+    "llmSearchDate",
+    "llmResultCount",
+    "llmSearchResults",
     "eventForm",
     "eventLocation",
     "eventDate",
     "eventRadius",
+    "eventInterleaveTime",
     "eventResults",
     "itineraryList",
     "refreshSuggestionsBtn",
@@ -169,9 +222,11 @@ function initMap() {
 
   layers = {
     hardPoints: L.layerGroup().addTo(map),
+    plannedStops: L.layerGroup().addTo(map),
     itineraryPath: L.layerGroup().addTo(map),
     routes: L.layerGroup().addTo(map),
     events: L.layerGroup().addTo(map),
+    llm: L.layerGroup().addTo(map),
   };
 }
 
@@ -180,8 +235,14 @@ function bindEvents() {
   els.hardPointForm.addEventListener("submit", handleAddHardPoint);
   els.hardPointList.addEventListener("click", handleHardPointAction);
   els.routeCompareForm.addEventListener("submit", handleRouteCompare);
+  els.placeForm.addEventListener("submit", handlePlaceSearch);
+  els.placeResults.addEventListener("click", handlePlaceAction);
+  els.llmConfigForm.addEventListener("submit", handleSaveLlmConfig);
+  els.llmSearchForm.addEventListener("submit", handleLlmSearch);
+  els.llmSearchResults.addEventListener("click", handleLlmAction);
   els.eventForm.addEventListener("submit", handleEventSearch);
   els.eventResults.addEventListener("click", handleEventAction);
+  els.itineraryList.addEventListener("click", handleItineraryAction);
   els.refreshSuggestionsBtn.addEventListener("click", () => {
     renderSuggestions();
     setStatus("Suggestions refreshed from memory.");
@@ -198,12 +259,21 @@ function hydrateProfileForm() {
   els.interests.value = state.profile.interests.join(", ");
 }
 
+function hydrateLlmForm() {
+  els.llmApiEndpoint.value = state.llm.endpoint || DEFAULT_LLM_CONFIG.endpoint;
+  els.llmModel.value = state.llm.model || DEFAULT_LLM_CONFIG.model;
+  els.llmApiKey.value = state.llm.apiKey || "";
+  els.llmEnabled.checked = Boolean(state.llm.enabled && state.llm.apiKey);
+}
+
 function renderAll() {
   renderMemorySummary();
   renderHardPoints();
   renderRouteSelectors();
   renderItinerary();
   renderSuggestions();
+  renderPlaceResults();
+  renderLlmResults();
   renderEventResults();
   renderRouteResults();
   renderMap();
@@ -349,23 +419,26 @@ function renderRouteSelectors() {
 }
 
 function renderItinerary() {
-  const trip = getSortedHardPoints();
-  if (!trip.length) {
-    els.itineraryList.innerHTML = "Add hard points to generate an itinerary timeline.";
+  const timeline = getTimelineItems();
+  if (!timeline.length) {
+    els.itineraryList.innerHTML = "Add hard points and interleaved items to build your timeline.";
     return;
   }
 
   const blocks = [];
-  for (let i = 0; i < trip.length; i += 1) {
-    const point = trip[i];
+  for (let i = 0; i < timeline.length; i += 1) {
+    const point = timeline[i];
+    const lockLabel = point.locked ? "Locked hard point" : "Interleaved flexible stop";
     blocks.push(`
       <article class="itinerary-stop">
         <strong>${i + 1}. ${htmlEscape(point.title)}</strong>
+        <div class="meta">${lockLabel} (${htmlEscape(point.type || point.sourceKind || "stop")})</div>
         <div class="meta">${formatDateTime(point.start)} ${point.end ? `-> ${formatDateTime(point.end)}` : ""}</div>
         <div class="meta">${htmlEscape(point.city || point.locationLabel)}</div>
+        ${!point.locked ? `<div class="item-actions"><button type="button" data-action="remove-planned-stop" data-id="${point.id}">Remove interleaved stop</button></div>` : ""}
       </article>
     `);
-    const next = trip[i + 1];
+    const next = timeline[i + 1];
     if (next) {
       const distance = haversineKm(point.lat, point.lng, next.lat, next.lng);
       const estimateMinutes = Math.round((distance / 70) * 60);
@@ -380,6 +453,20 @@ function renderItinerary() {
   }
 
   els.itineraryList.innerHTML = blocks.join("");
+}
+
+function handleItineraryAction(event) {
+  const button = event.target.closest("button[data-action]");
+  if (!button) return;
+  const action = button.dataset.action;
+  if (action !== "remove-planned-stop") return;
+  const itemId = button.dataset.id;
+  const point = state.plannedStops.find((entry) => entry.id === itemId);
+  if (!point) return;
+  state.plannedStops = state.plannedStops.filter((entry) => entry.id !== itemId);
+  saveState();
+  renderAll();
+  setStatus(`Removed interleaved stop "${point.title}".`);
 }
 
 function getAllSuggestions() {
@@ -593,6 +680,39 @@ function pinAsHardPoint({ title, type, city, locationLabel, lat, lng, notes, sta
   renderAll();
 }
 
+async function handlePlaceSearch(event) {
+  event.preventDefault();
+  const location = els.placeLocation.value.trim();
+  const mode = els.placeMode.value;
+  const radiusKm = Number(els.placeRadius.value || 25);
+  if (!location) {
+    setStatus("Location/trip search requires a city or area.", true);
+    return;
+  }
+
+  setStatus("Searching main locations and trip ideas...");
+  try {
+    const geo = await geocodeLocation(location);
+    const searches = [];
+    if (mode !== "trip") {
+      searches.push(getMainLocationsNear(geo.lat, geo.lng, radiusKm));
+    }
+    if (mode !== "main") {
+      searches.push(Promise.resolve(getTripIdeasNear(geo.lat, geo.lng, radiusKm)));
+    }
+    const groups = await Promise.all(searches);
+    const merged = dedupeGenericItems(groups.flat());
+    state.lastPlaces = merged;
+    saveState();
+    renderPlaceResults();
+    renderMap();
+    setStatus(`Found ${merged.length} locations/trips near ${geo.city || location}.`);
+  } catch (error) {
+    console.error(error);
+    setStatus(`Location/trip search failed: ${error.message}`, true);
+  }
+}
+
 async function handleEventSearch(event) {
   event.preventDefault();
   const location = els.eventLocation.value.trim();
@@ -618,6 +738,16 @@ async function handleEventSearch(event) {
     console.error(error);
     setStatus(`Event search failed: ${error.message}`, true);
   }
+}
+
+function dedupeGenericItems(items) {
+  const seen = new Set();
+  return items.filter((item) => {
+    const key = `${item.title}-${item.city}-${item.kind || item.category}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function dedupeEvents(events) {
@@ -681,6 +811,453 @@ async function getVenueEventsNear(lat, lng, date, radiusKm) {
   }
 }
 
+async function getMainLocationsNear(lat, lng, radiusKm) {
+  const fromSeed = SEED_MAIN_LOCATIONS
+    .filter((entry) => haversineKm(lat, lng, entry.lat, entry.lng) <= radiusKm + 200)
+    .map((entry) => ({
+      ...entry,
+      kind: "main-location",
+      description: "Popular main location",
+    }));
+
+  const fromOverpass = await getOsmMainLocationsNear(lat, lng, radiusKm);
+  return dedupeGenericItems([...fromSeed, ...fromOverpass]);
+}
+
+async function getOsmMainLocationsNear(lat, lng, radiusKm) {
+  const radiusMeters = Math.round(Math.max(1, radiusKm) * 1000);
+  const overpassQuery = `
+    [out:json][timeout:25];
+    (
+      node(around:${radiusMeters},${lat},${lng})[tourism~"attraction|museum|gallery|viewpoint|zoo|theme_park"];
+      way(around:${radiusMeters},${lat},${lng})[tourism~"attraction|museum|gallery|viewpoint|zoo|theme_park"];
+      node(around:${radiusMeters},${lat},${lng})[historic];
+      way(around:${radiusMeters},${lat},${lng})[historic];
+    );
+    out center 35;
+  `;
+
+  try {
+    const response = await fetch("https://overpass-api.de/api/interpreter", {
+      method: "POST",
+      body: overpassQuery,
+    });
+    if (!response.ok) return [];
+    const payload = await response.json();
+    return (payload.elements || []).slice(0, 18).map((entry) => {
+      const latitude = Number(entry.lat ?? entry.center?.lat);
+      const longitude = Number(entry.lon ?? entry.center?.lon);
+      const name = entry.tags?.name || "Main location";
+      const category = entry.tags?.tourism || entry.tags?.historic || "location";
+      return {
+        id: `place-${entry.type}-${entry.id}`,
+        title: name,
+        city: "Near search area",
+        lat: latitude,
+        lng: longitude,
+        category,
+        kind: "main-location",
+        description: "Discovered nearby main location.",
+        tags: [category, "main-location", "sightseeing"],
+      };
+    });
+  } catch (error) {
+    console.warn("Main location lookup failed", error);
+    return [];
+  }
+}
+
+function getTripIdeasNear(lat, lng, radiusKm) {
+  const seeded = SEED_TRIP_IDEAS
+    .filter((entry) => haversineKm(lat, lng, entry.lat, entry.lng) <= radiusKm + 350)
+    .map((entry) => ({ ...entry, kind: "trip" }));
+
+  const catalogTripIdeas = SUGGESTION_CATALOG
+    .filter((entry) => ["route", "day-trip", "tour", "walking-tour"].includes(entry.type))
+    .filter((entry) => Number.isFinite(entry.lat) && Number.isFinite(entry.lng))
+    .filter((entry) => haversineKm(lat, lng, entry.lat, entry.lng) <= radiusKm + 400)
+    .map((entry) => ({
+      id: `suggestion-trip-${entry.id}`,
+      title: entry.title,
+      city: entry.city,
+      lat: entry.lat,
+      lng: entry.lng,
+      category: entry.type,
+      kind: "trip",
+      description: entry.description || "Trip idea from recommendation engine.",
+      tags: entry.tags || ["trip"],
+    }));
+
+  return dedupeGenericItems([...seeded, ...catalogTripIdeas]);
+}
+
+function renderPlaceResults() {
+  if (!state.lastPlaces.length) {
+    els.placeResults.innerHTML = "<div class='result-card'>No location/trip search yet.</div>";
+    return;
+  }
+
+  els.placeResults.innerHTML = state.lastPlaces
+    .map((item) => `
+      <article class="result-card">
+        <strong>${htmlEscape(item.title)}</strong>
+        <div class="meta">${htmlEscape(item.city || "Unknown city")} | ${htmlEscape(item.kind || item.category || "location")}</div>
+        <div class="meta">${htmlEscape(item.description || "Suggested place/trip")}</div>
+        <div class="item-actions">
+          <button type="button" data-action="interleave-place" data-id="${item.id}">Interleave in itinerary</button>
+          <button type="button" data-action="lock-place" data-id="${item.id}">Lock as hard point</button>
+          <button type="button" data-action="rate-place" data-id="${item.id}" data-rating="3">Rate 3</button>
+          <button type="button" data-action="rate-place" data-id="${item.id}" data-rating="4">Rate 4</button>
+          <button type="button" data-action="rate-place" data-id="${item.id}" data-rating="5">Rate 5</button>
+        </div>
+      </article>
+    `)
+    .join("");
+}
+
+function handlePlaceAction(event) {
+  const button = event.target.closest("button[data-action]");
+  if (!button) return;
+  const itemId = button.dataset.id;
+  const action = button.dataset.action;
+  const place = state.lastPlaces.find((entry) => entry.id === itemId);
+  if (!place) return;
+
+  if (action === "interleave-place") {
+    const requestedStart = els.placeInterleaveTime.value || suggestInterleaveStart();
+    addPlannedStopFromSource(place, {
+      sourceKind: place.kind || "main-location",
+      type: place.category || place.kind || "location",
+      start: requestedStart,
+      notes: "Interleaved from location/trip finder",
+    });
+    setStatus(`Interleaved "${place.title}" into itinerary timeline.`);
+    return;
+  }
+
+  if (action === "lock-place") {
+    pinAsHardPoint({
+      title: place.title,
+      type: place.kind || place.category || "location",
+      city: place.city,
+      locationLabel: place.title,
+      lat: place.lat,
+      lng: place.lng,
+      notes: "Pinned from main location/trip finder",
+      start: els.placeInterleaveTime.value || suggestInterleaveStart(),
+    });
+    setStatus(`Locked "${place.title}" as hard point.`);
+    return;
+  }
+
+  if (action === "rate-place") {
+    const rating = Number(button.dataset.rating);
+    applyRating({
+      itemId: place.id,
+      title: place.title,
+      city: place.city,
+      tags: place.tags || [place.kind || "location"],
+      kind: place.kind || "main-location",
+    }, rating);
+  }
+}
+
+function handleSaveLlmConfig(event) {
+  event.preventDefault();
+  state.llm = {
+    endpoint: (els.llmApiEndpoint.value || DEFAULT_LLM_CONFIG.endpoint).trim(),
+    model: (els.llmModel.value || DEFAULT_LLM_CONFIG.model).trim(),
+    apiKey: els.llmApiKey.value.trim(),
+    enabled: Boolean(els.llmEnabled.checked),
+  };
+  saveState();
+  setStatus("LLM search settings saved.");
+}
+
+async function handleLlmSearch(event) {
+  event.preventDefault();
+  const query = els.llmQuery.value.trim();
+  const location = els.llmSearchLocation.value.trim();
+  const date = els.llmSearchDate.value;
+  const resultCount = Number(els.llmResultCount.value || 8);
+
+  if (!query) {
+    setStatus("LLM search requires a natural-language query.", true);
+    return;
+  }
+  if (!state.llm.enabled) {
+    setStatus("Enable LLM search first in the settings above.", true);
+    return;
+  }
+  if (!state.llm.apiKey) {
+    setStatus("Add an API key before running LLM search.", true);
+    return;
+  }
+
+  setStatus("Running LLM-based search...");
+  try {
+    const llmItems = await callLlmSearch({ query, location, date, resultCount });
+    state.lastLlmResults = dedupeGenericItems(llmItems);
+    saveState();
+    renderLlmResults();
+    renderMap();
+    setStatus(`LLM search returned ${state.lastLlmResults.length} results.`);
+  } catch (error) {
+    console.error(error);
+    setStatus(`LLM search failed: ${error.message}`, true);
+  }
+}
+
+async function callLlmSearch({ query, location, date, resultCount }) {
+  const hardPointContext = getSortedHardPoints().slice(0, 10).map((point) => ({
+    title: point.title,
+    city: point.city,
+    start: point.start,
+    type: point.type,
+  }));
+
+  const payload = {
+    model: state.llm.model,
+    temperature: 0.2,
+    messages: [
+      {
+        role: "system",
+        content: [
+          "You are a trip planning assistant.",
+          "Return ONLY valid JSON.",
+          "Generate recommendations for main locations, events, and trips that can be interleaved in an itinerary.",
+          "Prefer results relevant to traveler profile and hard-point timing.",
+          "Output either a JSON object with key 'results' or a JSON array.",
+          "Each result item fields:",
+          "title (string), kind ('main-location'|'event'|'trip'), city (string), date (YYYY-MM-DD optional),",
+          "startHint (YYYY-MM-DDTHH:mm optional), tags (array of strings), reason (string), locationQuery (string optional), lat (number optional), lng (number optional).",
+        ].join(" "),
+      },
+      {
+        role: "user",
+        content: JSON.stringify({
+          userQuery: query,
+          anchorLocation: location || null,
+          targetDate: date || null,
+          maxResults: Math.min(20, Math.max(1, resultCount)),
+          travelerProfile: state.profile,
+          memoryTopTags: Object.entries(state.memory.tagScores).sort((a, b) => b[1] - a[1]).slice(0, 8),
+          hardPoints: hardPointContext,
+          existingRecentPlaceResults: state.lastPlaces.slice(0, 15),
+          existingRecentEventResults: state.lastEvents.slice(0, 15),
+        }),
+      },
+    ],
+  };
+
+  const response = await fetch(state.llm.endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${state.llm.apiKey}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(`LLM provider returned ${response.status}: ${details.slice(0, 240)}`);
+  }
+
+  const responseJson = await response.json();
+  const rawContent = responseJson.choices?.[0]?.message?.content;
+  let content = "";
+  if (Array.isArray(rawContent)) {
+    content = rawContent.map((part) => (typeof part === "string" ? part : part?.text || "")).join("\n");
+  } else {
+    content = String(rawContent || "");
+  }
+  if (!content.trim()) {
+    throw new Error("LLM provider returned an empty answer.");
+  }
+
+  const parsed = parseJsonFromLlmText(content);
+  const rawItems = Array.isArray(parsed)
+    ? parsed
+    : Array.isArray(parsed.results)
+      ? parsed.results
+      : Array.isArray(parsed.items)
+        ? parsed.items
+        : [];
+
+  if (!rawItems.length) {
+    throw new Error("LLM response contained no result items.");
+  }
+
+  return normalizeLlmResults(rawItems, { location, date, resultCount });
+}
+
+function parseJsonFromLlmText(text) {
+  const candidates = [text.trim()];
+  const codeBlock = text.match(/```json\s*([\s\S]*?)```/i) || text.match(/```([\s\S]*?)```/);
+  if (codeBlock?.[1]) candidates.push(codeBlock[1].trim());
+
+  const objectStart = text.indexOf("{");
+  const objectEnd = text.lastIndexOf("}");
+  if (objectStart !== -1 && objectEnd > objectStart) {
+    candidates.push(text.slice(objectStart, objectEnd + 1).trim());
+  }
+
+  const arrayStart = text.indexOf("[");
+  const arrayEnd = text.lastIndexOf("]");
+  if (arrayStart !== -1 && arrayEnd > arrayStart) {
+    candidates.push(text.slice(arrayStart, arrayEnd + 1).trim());
+  }
+
+  for (const candidate of candidates) {
+    try {
+      return JSON.parse(candidate);
+    } catch {
+      // Keep trying alternate extraction strategies.
+    }
+  }
+  throw new Error("LLM output was not valid JSON.");
+}
+
+function normalizeLlmResults(rawItems, { location, date, resultCount }) {
+  const allowedKinds = new Set(["main-location", "event", "trip"]);
+  return rawItems
+    .slice(0, Math.min(20, Math.max(1, resultCount)))
+    .map((item) => {
+      const rawKind = String(item.kind || "main-location").toLowerCase().trim();
+      const kind = allowedKinds.has(rawKind) ? rawKind : "main-location";
+      const tags = Array.isArray(item.tags)
+        ? item.tags.map((tag) => String(tag).trim().toLowerCase()).filter(Boolean)
+        : parseTags(item.tags || kind);
+      const lat = Number(item.lat);
+      const lng = Number(item.lng);
+      const fallbackDate = date || "";
+      const startHint = String(item.startHint || "").trim()
+        || (item.date ? `${item.date}T12:00` : "")
+        || (fallbackDate ? `${fallbackDate}T12:00` : "");
+      const city = String(item.city || location || "").trim();
+      const title = String(item.title || "").trim();
+      const locationQuery = String(item.locationQuery || `${title}${city ? `, ${city}` : ""}`).trim();
+      return {
+        id: generateId("llm"),
+        title: title || "Suggested stop",
+        kind,
+        city,
+        date: String(item.date || fallbackDate || "").trim(),
+        startHint,
+        tags: tags.length ? tags : [kind],
+        description: String(item.reason || item.description || "LLM suggested this stop for your trip.").trim(),
+        locationQuery,
+        lat: Number.isFinite(lat) ? lat : null,
+        lng: Number.isFinite(lng) ? lng : null,
+      };
+    })
+    .filter((item) => item.title);
+}
+
+function renderLlmResults() {
+  if (!state.lastLlmResults.length) {
+    els.llmSearchResults.innerHTML = "<div class='result-card'>No LLM search results yet.</div>";
+    return;
+  }
+
+  els.llmSearchResults.innerHTML = state.lastLlmResults
+    .map((item) => `
+      <article class="result-card">
+        <strong>${htmlEscape(item.title)}</strong>
+        <div class="meta">${htmlEscape(item.kind)} | ${htmlEscape(item.city || "City not set")}${item.date ? ` | ${htmlEscape(item.date)}` : ""}</div>
+        <div class="meta">${htmlEscape(item.description || "LLM recommendation")}</div>
+        <div class="meta">${Number.isFinite(item.lat) && Number.isFinite(item.lng) ? "Map coordinates available" : "Coordinates will be resolved on add"}</div>
+        <div class="chip-list">${(item.tags || []).map((tag) => `<span class="chip">${htmlEscape(tag)}</span>`).join("")}</div>
+        <div class="item-actions">
+          <button type="button" data-action="interleave-llm" data-id="${item.id}">Interleave in itinerary</button>
+          <button type="button" data-action="lock-llm" data-id="${item.id}">Lock as hard point</button>
+          <button type="button" data-action="rate-llm" data-id="${item.id}" data-rating="3">Rate 3</button>
+          <button type="button" data-action="rate-llm" data-id="${item.id}" data-rating="4">Rate 4</button>
+          <button type="button" data-action="rate-llm" data-id="${item.id}" data-rating="5">Rate 5</button>
+        </div>
+      </article>
+    `)
+    .join("");
+}
+
+async function handleLlmAction(event) {
+  const button = event.target.closest("button[data-action]");
+  if (!button) return;
+  const action = button.dataset.action;
+  const itemId = button.dataset.id;
+  const item = state.lastLlmResults.find((entry) => entry.id === itemId);
+  if (!item) return;
+
+  if (action === "rate-llm") {
+    const rating = Number(button.dataset.rating);
+    applyRating({
+      itemId: item.id,
+      title: item.title,
+      city: item.city,
+      tags: item.tags || [item.kind],
+      kind: `llm-${item.kind}`,
+    }, rating);
+    return;
+  }
+
+  try {
+    setStatus(`Resolving location for "${item.title}"...`);
+    const enriched = await ensureLlmItemCoordinates(item);
+    const suggestedStart = enriched.startHint || suggestInterleaveStart();
+    if (action === "interleave-llm") {
+      addPlannedStopFromSource(enriched, {
+        sourceKind: `llm-${enriched.kind}`,
+        type: enriched.kind,
+        start: suggestedStart,
+        notes: "Interleaved from LLM search",
+      });
+      setStatus(`Interleaved "${enriched.title}" from LLM search.`);
+      return;
+    }
+
+    if (action === "lock-llm") {
+      pinAsHardPoint({
+        title: enriched.title,
+        type: enriched.kind,
+        city: enriched.city,
+        locationLabel: enriched.locationQuery || enriched.city || enriched.title,
+        lat: enriched.lat,
+        lng: enriched.lng,
+        notes: "Pinned from LLM search",
+        start: suggestedStart,
+      });
+      setStatus(`Locked "${enriched.title}" as hard point from LLM search.`);
+    }
+  } catch (error) {
+    console.error(error);
+    setStatus(`Could not add LLM result: ${error.message}`, true);
+  }
+}
+
+async function ensureLlmItemCoordinates(item) {
+  if (Number.isFinite(item.lat) && Number.isFinite(item.lng)) {
+    return item;
+  }
+  if (!item.locationQuery) {
+    throw new Error("Result does not have enough location info.");
+  }
+
+  const geo = await geocodeLocation(item.locationQuery);
+  const enriched = {
+    ...item,
+    city: item.city || geo.city,
+    lat: geo.lat,
+    lng: geo.lng,
+    locationQuery: geo.label || item.locationQuery,
+  };
+  state.lastLlmResults = state.lastLlmResults.map((entry) => (entry.id === item.id ? enriched : entry));
+  saveState();
+  renderLlmResults();
+  renderMap();
+  return enriched;
+}
+
 function renderEventResults() {
   if (!state.lastEvents.length) {
     els.eventResults.innerHTML = "<div class='result-card'>No events searched yet.</div>";
@@ -694,6 +1271,7 @@ function renderEventResults() {
         <div class="meta">${htmlEscape(event.date)} | ${htmlEscape(event.city)} | ${htmlEscape(event.category)}</div>
         <div class="meta">${htmlEscape(event.venue || "Venue pending")}</div>
         <div class="item-actions">
+          <button type="button" data-action="interleave-event" data-id="${event.id}">Interleave in itinerary</button>
           <button type="button" data-action="pin-event" data-id="${event.id}">Pin as hard point</button>
           <button type="button" data-action="rate-event" data-id="${event.id}" data-rating="3">Rate 3</button>
           <button type="button" data-action="rate-event" data-id="${event.id}" data-rating="4">Rate 4</button>
@@ -711,6 +1289,18 @@ function handleEventAction(event) {
   const action = button.dataset.action;
   const eventData = state.lastEvents.find((entry) => entry.id === eventId);
   if (!eventData) return;
+
+  if (action === "interleave-event") {
+    const requestedStart = els.eventInterleaveTime.value || `${eventData.date}T19:00`;
+    addPlannedStopFromSource(eventData, {
+      sourceKind: "event",
+      type: "event",
+      start: requestedStart,
+      notes: "Interleaved from event finder",
+    });
+    setStatus(`Interleaved event "${eventData.title}" into itinerary timeline.`);
+    return;
+  }
 
   if (action === "pin-event") {
     pinAsHardPoint({
@@ -854,9 +1444,11 @@ function renderRouteResults() {
 
 function renderMap() {
   layers.hardPoints.clearLayers();
+  layers.plannedStops.clearLayers();
   layers.itineraryPath.clearLayers();
   layers.routes.clearLayers();
   layers.events.clearLayers();
+  layers.llm.clearLayers();
 
   const mapElements = [];
   const sorted = getSortedHardPoints();
@@ -868,7 +1460,26 @@ function renderMap() {
     mapElements.push(marker);
   });
 
-  if (sorted.length >= 2) {
+  const plannedStops = getSortedPlannedStops();
+  plannedStops.forEach((stop) => {
+    if (!Number.isFinite(stop.lat) || !Number.isFinite(stop.lng)) return;
+    const marker = L.circleMarker([stop.lat, stop.lng], {
+      radius: 6,
+      color: "#7555c8",
+      fillColor: "#9a7cf3",
+      fillOpacity: 0.8,
+    }).bindPopup(`<strong>${htmlEscape(stop.title)}</strong><br>Interleaved ${htmlEscape(stop.sourceKind || "stop")}`);
+    marker.addTo(layers.plannedStops);
+    mapElements.push(marker);
+  });
+
+  const timelineCoords = getTimelineItems()
+    .filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng))
+    .map((point) => [point.lat, point.lng]);
+  if (timelineCoords.length >= 2) {
+    const path = L.polyline(timelineCoords, { color: "#355f9e", weight: 3, dashArray: "6,6" }).addTo(layers.itineraryPath);
+    mapElements.push(path);
+  } else if (sorted.length >= 2) {
     const coords = sorted
       .filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng))
       .map((point) => [point.lat, point.lng]);
@@ -900,6 +1511,18 @@ function renderMap() {
     }).bindPopup(`<strong>${htmlEscape(event.title)}</strong><br>${htmlEscape(event.date)} | ${htmlEscape(event.category)}`);
     circle.addTo(layers.events);
     mapElements.push(circle);
+  });
+
+  state.lastLlmResults.forEach((item) => {
+    if (!Number.isFinite(item.lat) || !Number.isFinite(item.lng)) return;
+    const marker = L.circleMarker([item.lat, item.lng], {
+      radius: 5,
+      color: "#0d8a6b",
+      fillColor: "#22b78f",
+      fillOpacity: 0.85,
+    }).bindPopup(`<strong>${htmlEscape(item.title)}</strong><br>LLM ${htmlEscape(item.kind)}`);
+    marker.addTo(layers.llm);
+    mapElements.push(marker);
   });
 
   if (mapElements.length) {
@@ -938,12 +1561,92 @@ function getSortedHardPoints() {
   });
 }
 
+function getSortedPlannedStops() {
+  return [...state.plannedStops].sort((a, b) => {
+    const da = Date.parse(a.start) || 0;
+    const db = Date.parse(b.start) || 0;
+    return da - db;
+  });
+}
+
 function sortHardPointsInPlace() {
   state.hardPoints.sort((a, b) => {
     const da = Date.parse(a.start) || 0;
     const db = Date.parse(b.start) || 0;
     return da - db;
   });
+}
+
+function sortPlannedStopsInPlace() {
+  state.plannedStops.sort((a, b) => {
+    const da = Date.parse(a.start) || 0;
+    const db = Date.parse(b.start) || 0;
+    return da - db;
+  });
+}
+
+function getTimelineItems() {
+  const hard = getSortedHardPoints().map((point) => ({
+    ...point,
+    locked: true,
+    sourceKind: "hard-point",
+  }));
+  const planned = getSortedPlannedStops().map((point) => ({
+    ...point,
+    locked: false,
+    sourceKind: point.sourceKind || "interleave",
+  }));
+  return [...hard, ...planned].sort((a, b) => {
+    const da = Date.parse(a.start) || 0;
+    const db = Date.parse(b.start) || 0;
+    if (da === db) {
+      return Number(b.locked) - Number(a.locked);
+    }
+    return da - db;
+  });
+}
+
+function suggestInterleaveStart() {
+  const timeline = getTimelineItems();
+  const now = new Date();
+  if (!timeline.length) {
+    now.setHours(now.getHours() + 4);
+    return now.toISOString().slice(0, 16);
+  }
+
+  const firstFuture = timeline.find((entry) => Date.parse(entry.start) > Date.now());
+  if (firstFuture) {
+    const start = new Date(firstFuture.start);
+    start.setHours(start.getHours() - 2);
+    return start.toISOString().slice(0, 16);
+  }
+
+  const last = timeline[timeline.length - 1];
+  const next = new Date(last.start);
+  next.setHours(next.getHours() + 3);
+  return next.toISOString().slice(0, 16);
+}
+
+function addPlannedStopFromSource(source, { sourceKind, type, start, notes }) {
+  const plannedStop = {
+    id: generateId("plan"),
+    title: source.title,
+    type: type || source.category || source.kind || "stop",
+    sourceKind: sourceKind || source.kind || "interleave",
+    start: start || suggestInterleaveStart(),
+    end: "",
+    city: source.city || "",
+    locationLabel: source.venue || source.title || source.city || "",
+    lat: Number.isFinite(source.lat) ? source.lat : 0,
+    lng: Number.isFinite(source.lng) ? source.lng : 0,
+    bookingRef: "",
+    notes: notes || "",
+    createdAt: new Date().toISOString(),
+  };
+  state.plannedStops.push(plannedStop);
+  sortPlannedStopsInPlace();
+  saveState();
+  renderAll();
 }
 
 function haversineKm(lat1, lon1, lat2, lon2) {
@@ -989,6 +1692,15 @@ function setDefaultEventDate() {
   const date = new Date();
   date.setDate(date.getDate() + 7);
   els.eventDate.value = date.toISOString().slice(0, 10);
+  if (!els.llmSearchDate.value) {
+    els.llmSearchDate.value = date.toISOString().slice(0, 10);
+  }
+  const eventStart = new Date(date);
+  eventStart.setHours(19, 0, 0, 0);
+  els.eventInterleaveTime.value = eventStart.toISOString().slice(0, 16);
+  const placeStart = new Date();
+  placeStart.setHours(placeStart.getHours() + 6);
+  els.placeInterleaveTime.value = placeStart.toISOString().slice(0, 16);
 }
 
 function init() {
@@ -996,6 +1708,7 @@ function init() {
   initMap();
   bindEvents();
   hydrateProfileForm();
+  hydrateLlmForm();
   setDefaultEventDate();
   renderAll();
   setStatus("MindTrip planner ready. Add hard points to begin.");

@@ -98,6 +98,79 @@
       </section>
 
       <section class="card">
+        <h2>Find Main Locations & Trips</h2>
+        <form id="placeForm" class="stack">
+          <label>
+            City / Area
+            <input id="placeLocation" name="placeLocation" type="text" placeholder="Paris" required>
+          </label>
+          <label>
+            Search mode
+            <select id="placeMode" name="placeMode">
+              <option value="all">Main locations + trips</option>
+              <option value="main">Main locations only</option>
+              <option value="trip">Trips only</option>
+            </select>
+          </label>
+          <label>
+            Radius (km)
+            <input id="placeRadius" name="placeRadius" type="number" min="1" max="150" value="25">
+          </label>
+          <label>
+            Interleave time (optional)
+            <input id="placeInterleaveTime" name="placeInterleaveTime" type="datetime-local">
+          </label>
+          <button type="submit">Find main locations and trips</button>
+        </form>
+        <div id="placeResults" class="results"></div>
+      </section>
+
+      <section class="card">
+        <h2>LLM-based Search</h2>
+        <p class="hint">Use natural language to discover interleavable locations, events, and trips.</p>
+        <form id="llmConfigForm" class="stack">
+          <label>
+            API Endpoint (OpenAI-compatible)
+            <input id="llmApiEndpoint" type="url" placeholder="https://openrouter.ai/api/v1/chat/completions">
+          </label>
+          <label>
+            Model
+            <input id="llmModel" type="text" placeholder="openai/gpt-4o-mini">
+          </label>
+          <label>
+            API Key
+            <input id="llmApiKey" type="password" placeholder="sk-...">
+          </label>
+          <label class="checkbox-inline">
+            <input id="llmEnabled" type="checkbox">
+            Enable LLM search
+          </label>
+          <button type="submit">Save LLM settings</button>
+        </form>
+
+        <form id="llmSearchForm" class="stack">
+          <label>
+            Ask the planner
+            <textarea id="llmQuery" rows="3" placeholder="Find iconic locations by day and live music events by night between my hard points." required></textarea>
+          </label>
+          <label>
+            Anchor city/area (optional)
+            <input id="llmSearchLocation" type="text" placeholder="Paris">
+          </label>
+          <label>
+            Target date (optional)
+            <input id="llmSearchDate" type="date">
+          </label>
+          <label>
+            Results count
+            <input id="llmResultCount" type="number" min="1" max="20" value="8">
+          </label>
+          <button type="submit">Run LLM search</button>
+        </form>
+        <div id="llmSearchResults" class="results"></div>
+      </section>
+
+      <section class="card">
         <h2>Route Planner</h2>
         <form id="routeCompareForm" class="stack">
           <label>
@@ -134,6 +207,10 @@
           <label>
             Radius (km)
             <input id="eventRadius" name="eventRadius" type="number" min="1" max="100" value="15">
+          </label>
+          <label>
+            Interleave time (optional)
+            <input id="eventInterleaveTime" name="eventInterleaveTime" type="datetime-local">
           </label>
           <button type="submit">Find events</button>
         </form>
