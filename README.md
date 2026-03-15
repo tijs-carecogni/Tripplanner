@@ -47,6 +47,7 @@ A lightweight MindTrip-like travel planner focused on:
 - Country/region route strip with transport icons and segment distances.
 - Activity-mix bars and trip pulse timeline for day density.
 - Styled map legs with transport-aware lines (flight arcs, rail/road/walk styles) and icon markers.
+- Design-grade UI system: glassmorphism cards, premium gradients, richer depth/shadows, and stronger typography hierarchy.
 
 ### 5) Two-level Route Planning (MindTrip-style)
 - **Level 1 (Route level):** create route node sets (main stops/hubs).
