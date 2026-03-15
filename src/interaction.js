@@ -34,6 +34,7 @@ export function createHighlightController() {
   let highlightedSegmentKey = "";
   let highlightedEntityLinkKey = "";
   let pinnedHighlight = null;
+  let pinningEnabled = true;
   let boundRoot = null;
 
   const onPointerOver = (event) => {
@@ -66,6 +67,7 @@ export function createHighlightController() {
   };
 
   const onClick = (event) => {
+    if (!pinningEnabled) return;
     const actionButton = event.target?.closest?.("button[data-action]");
     if (actionButton) return;
 
@@ -96,6 +98,7 @@ export function createHighlightController() {
   };
 
   const onKeyDown = (event) => {
+    if (!pinningEnabled) return;
     if (event.key !== "Escape") return;
     if (!pinnedHighlight) return;
     clearPinned();
@@ -185,6 +188,7 @@ export function createHighlightController() {
         setHighlightedEntity("", "", "", { source: "hover" });
       });
       layer.on("click", () => {
+        if (!pinningEnabled) return;
         const nextEntity = normalizedEntity[0] || "";
         const nextSegment = normalizedSegment[0] || "";
         const nextLink = normalizedLinks[0] || "";
@@ -243,10 +247,20 @@ export function createHighlightController() {
     mapHighlightEntries = [];
   }
 
+  function setPinningEnabled(enabled) {
+    pinningEnabled = Boolean(enabled);
+    if (!pinningEnabled && pinnedHighlight) {
+      clearPinned();
+    } else {
+      applyDOMHighlight();
+    }
+  }
+
   return {
     bindRoot,
     setHighlightedEntity,
     clearPinned,
+    setPinningEnabled,
     applyDOMHighlight,
     registerMapLayer,
     applyMapHighlight,

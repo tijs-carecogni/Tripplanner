@@ -226,6 +226,18 @@ button:hover {
   gap: 0.55rem;
 }
 
+.itinerary-day-header {
+  border: 1px solid #cfdff8;
+  background: linear-gradient(180deg, #eef4ff, #e8f1ff);
+  border-radius: 8px;
+  padding: 0.42rem 0.62rem;
+}
+
+.itinerary-day-title {
+  font-weight: 700;
+  color: #1e3f72;
+}
+
 .itinerary-stop {
   border-left: 3px solid #2d62af;
   background: #f7fafe;

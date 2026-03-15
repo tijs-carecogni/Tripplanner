@@ -82,6 +82,19 @@ function createDefaultState() {
       updatedAt: "",
     },
     routeComparison: null,
+    expertSettings: {
+      plannerMode: "expert-balanced",
+      suggestionCount: 12,
+      dailyStopTarget: 3,
+      hardPointBufferHours: 1.5,
+      eventIntensity: 3,
+      transportBias: "balanced",
+      groupItineraryByDay: true,
+      mapAutoFit: true,
+      mapFocusMode: "trip-core",
+      showRecommendationLayer: true,
+      persistentSelection: true,
+    },
     llm: {
       ...DEFAULT_LLM_CONFIG,
     },
@@ -141,6 +154,27 @@ function loadState() {
         generalStrategy: parsed?.outlineDraft?.generalStrategy || null,
         focusedBlockId: parsed?.outlineDraft?.focusedBlockId || "",
       },
+      expertSettings: {
+        ...defaults.expertSettings,
+        ...(parsed.expertSettings || {}),
+        suggestionCount: Number.isFinite(Number(parsed?.expertSettings?.suggestionCount))
+          ? Number(parsed.expertSettings.suggestionCount)
+          : defaults.expertSettings.suggestionCount,
+        dailyStopTarget: Number.isFinite(Number(parsed?.expertSettings?.dailyStopTarget))
+          ? Number(parsed.expertSettings.dailyStopTarget)
+          : defaults.expertSettings.dailyStopTarget,
+        hardPointBufferHours: Number.isFinite(Number(parsed?.expertSettings?.hardPointBufferHours))
+          ? Number(parsed.expertSettings.hardPointBufferHours)
+          : defaults.expertSettings.hardPointBufferHours,
+        eventIntensity: Number.isFinite(Number(parsed?.expertSettings?.eventIntensity))
+          ? Number(parsed.expertSettings.eventIntensity)
+          : defaults.expertSettings.eventIntensity,
+        groupItineraryByDay: parsed?.expertSettings?.groupItineraryByDay !== false,
+        mapAutoFit: parsed?.expertSettings?.mapAutoFit !== false,
+        mapFocusMode: parsed?.expertSettings?.mapFocusMode || defaults.expertSettings.mapFocusMode,
+        showRecommendationLayer: parsed?.expertSettings?.showRecommendationLayer !== false,
+        persistentSelection: parsed?.expertSettings?.persistentSelection !== false,
+      },
       llm: { ...DEFAULT_LLM_CONFIG, ...(parsed.llm || {}) },
     };
   } catch (error) {
@@ -181,6 +215,19 @@ function bindElements() {
     "itineraryGenerationLimit",
     "itineraryReplaceGenerated",
     "tripContextSummary",
+    "expertSettingsForm",
+    "expertPlannerMode",
+    "expertSuggestionCount",
+    "expertDailyStopTarget",
+    "expertHardPointBufferHours",
+    "expertEventIntensity",
+    "expertTransportBias",
+    "expertGroupByDay",
+    "expertMapAutoFit",
+    "expertMapFocusMode",
+    "expertShowRecommendations",
+    "expertPersistentSelection",
+    "expertSettingsSummary",
     "conversationForm",
     "conversationInput",
     "sideTrackTopic",
@@ -295,6 +342,7 @@ function initMap() {
 function bindEvents() {
   els.profileForm.addEventListener("submit", handleSaveProfile);
   els.tripContextForm.addEventListener("submit", handleSaveTripContext);
+  els.expertSettingsForm.addEventListener("submit", handleSaveExpertSettings);
   els.llmItineraryForm.addEventListener("submit", handleGenerateLlmItineraryParts);
   els.conversationForm.addEventListener("submit", handleConversationSubmit);
   els.startSideTrackBtn.addEventListener("click", handleStartSideTrack);
@@ -348,6 +396,27 @@ function hydrateTripContextForm() {
   els.tripLikedExamples.value = (state.tripContext.likedExamples || []).join("\n");
 }
 
+function hydrateExpertSettingsForm() {
+  const settings = state.expertSettings || createDefaultState().expertSettings;
+  els.expertPlannerMode.value = settings.plannerMode || "expert-balanced";
+  els.expertSuggestionCount.value = String(settings.suggestionCount ?? 12);
+  els.expertDailyStopTarget.value = String(settings.dailyStopTarget ?? 3);
+  els.expertHardPointBufferHours.value = String(settings.hardPointBufferHours ?? 1.5);
+  els.expertEventIntensity.value = String(settings.eventIntensity ?? 3);
+  els.expertTransportBias.value = settings.transportBias || "balanced";
+  els.expertGroupByDay.checked = settings.groupItineraryByDay !== false;
+  els.expertMapAutoFit.checked = settings.mapAutoFit !== false;
+  els.expertMapFocusMode.value = settings.mapFocusMode || "trip-core";
+  els.expertShowRecommendations.checked = settings.showRecommendationLayer !== false;
+  els.expertPersistentSelection.checked = settings.persistentSelection !== false;
+}
+
+function getExpertSuggestionCount(fallback = 12) {
+  const value = Number(state.expertSettings?.suggestionCount);
+  if (!Number.isFinite(value)) return fallback;
+  return Math.max(4, Math.min(30, Math.round(value)));
+}
+
 function hydrateLlmForm() {
   els.llmProvider.value = state.llm.provider || DEFAULT_LLM_CONFIG.provider;
   els.llmApiEndpoint.value = state.llm.endpoint || DEFAULT_LLM_CONFIG.endpoint;
@@ -361,6 +430,7 @@ function hydrateLlmForm() {
 function renderAll() {
   renderMemorySummary();
   renderTripContextSummary();
+  renderExpertSettingsSummary();
   renderConversation();
   renderConversationInsights();
   renderSoftPois();
@@ -478,6 +548,27 @@ function handleSaveTripContext(event) {
   setStatus("Trip context saved for itinerary generation.");
 }
 
+function handleSaveExpertSettings(event) {
+  event.preventDefault();
+  state.expertSettings = {
+    plannerMode: els.expertPlannerMode.value || "expert-balanced",
+    suggestionCount: Math.max(4, Math.min(30, Number(els.expertSuggestionCount.value || 12))),
+    dailyStopTarget: Math.max(1, Math.min(8, Number(els.expertDailyStopTarget.value || 3))),
+    hardPointBufferHours: Math.max(0, Math.min(12, Number(els.expertHardPointBufferHours.value || 1.5))),
+    eventIntensity: Math.max(0, Math.min(5, Number(els.expertEventIntensity.value || 3))),
+    transportBias: els.expertTransportBias.value || "balanced",
+    groupItineraryByDay: Boolean(els.expertGroupByDay.checked),
+    mapAutoFit: Boolean(els.expertMapAutoFit.checked),
+    mapFocusMode: els.expertMapFocusMode.value || "trip-core",
+    showRecommendationLayer: Boolean(els.expertShowRecommendations.checked),
+    persistentSelection: Boolean(els.expertPersistentSelection.checked),
+  };
+  interactionController.setPinningEnabled(state.expertSettings.persistentSelection !== false);
+  saveState();
+  renderAll();
+  setStatus("Expert TripMind settings saved.");
+}
+
 function renderTripContextSummary() {
   const hardCount = state.hardPoints.length;
   const generatedCount = state.plannedStops.filter((stop) => stop.sourceKind === "llm-itinerary").length;
@@ -491,6 +582,17 @@ function renderTripContextSummary() {
     <div><strong>Inferred trip ideas:</strong> ${htmlEscape((state.tripContext.inferredIdeas || []).slice(0, 4).join(" | ") || "none yet")}</div>
     <div><strong>Hard points:</strong> ${hardCount} | <strong>LLM-generated parts:</strong> ${generatedCount}</div>
     <div><strong>Fill windows detected:</strong> ${windows.length}</div>
+  `;
+}
+
+function renderExpertSettingsSummary() {
+  const settings = state.expertSettings || createDefaultState().expertSettings;
+  els.expertSettingsSummary.innerHTML = `
+    <div><strong>Mode:</strong> ${htmlEscape(settings.plannerMode)}</div>
+    <div><strong>Suggestion breadth:</strong> ${settings.suggestionCount} | <strong>Daily target:</strong> ${settings.dailyStopTarget} stops</div>
+    <div><strong>Hard-point buffer:</strong> ${settings.hardPointBufferHours}h | <strong>Event intensity:</strong> ${settings.eventIntensity}/5</div>
+    <div><strong>Transport bias:</strong> ${htmlEscape(settings.transportBias)} | <strong>Map focus:</strong> ${htmlEscape(settings.mapFocusMode)}</div>
+    <div><strong>Grouped itinerary:</strong> ${settings.groupItineraryByDay ? "on" : "off"} | <strong>Pinned selection:</strong> ${settings.persistentSelection ? "on" : "off"}</div>
   `;
 }
 
@@ -2016,39 +2118,75 @@ function renderItinerary() {
   }
 
   const blocks = [];
+  const useDayGrouping = state.expertSettings?.groupItineraryByDay !== false;
+  let pointNumber = 1;
+  let currentDayKey = "";
   for (let i = 0; i < timeline.length; i += 1) {
     const point = timeline[i];
-    let lockLabel = "Interleaved flexible stop";
-    if (point.locked) {
-      lockLabel = "Locked hard point";
-    } else if (String(point.sourceKind || "").startsWith("route-node:")) {
-      lockLabel = "Route node (main stop)";
-    }
-    blocks.push(`
-      <article class="itinerary-stop" data-entity-key="${htmlEscape(point.id)}" data-entity-link="${htmlEscape(buildEntityLinkKey(point))}">
-        <strong>${i + 1}. ${htmlEscape(point.title)}</strong>
-        <div class="meta">${lockLabel} (${htmlEscape(point.type || point.sourceKind || "stop")})</div>
-        <div class="meta">${formatDateTime(point.start)} ${point.end ? `-> ${formatDateTime(point.end)}` : ""}</div>
-        <div class="meta">${htmlEscape(point.city || point.locationLabel)}</div>
-        ${(!point.locked && !String(point.sourceKind || "").startsWith("route-node:")) ? `<div class="item-actions"><button type="button" data-action="remove-planned-stop" data-id="${point.id}">Remove interleaved stop</button></div>` : ""}
-      </article>
-    `);
-    const next = timeline[i + 1];
-    if (next) {
-      const distance = haversineKm(point.lat, point.lng, next.lat, next.lng);
-      const estimateMinutes = Math.round((distance / 70) * 60);
-      const segmentKey = buildSegmentKey(point.id, next.id);
+    const dayKey = getItineraryDayKey(point.start);
+    if (useDayGrouping && dayKey !== currentDayKey) {
+      currentDayKey = dayKey;
+      const dayCount = timeline.filter((entry) => getItineraryDayKey(entry.start) === dayKey).length;
       blocks.push(`
-        <article class="itinerary-stop" data-segment-key="${htmlEscape(segmentKey)}">
-          <strong>Transit Segment</strong>
-          <div class="meta">${htmlEscape(point.title)} -> ${htmlEscape(next.title)}</div>
-          <div class="meta">Approx ${distance.toFixed(1)} km (${formatDurationMinutes(estimateMinutes)} by average road pace)</div>
+        <article class="itinerary-day-header">
+          <div class="itinerary-day-title">${htmlEscape(formatItineraryDayLabel(dayKey))}</div>
+          <div class="meta">${dayCount} stop${dayCount === 1 ? "" : "s"}</div>
         </article>
       `);
+    }
+    blocks.push(renderTimelinePointBlock(point, pointNumber));
+    pointNumber += 1;
+    const next = timeline[i + 1];
+    if (next) {
+      blocks.push(renderTransitSegmentBlock(point, next));
     }
   }
 
   els.itineraryList.innerHTML = blocks.join("");
+}
+
+function renderTimelinePointBlock(point, pointNumber) {
+  let lockLabel = "Interleaved flexible stop";
+  if (point.locked) {
+    lockLabel = "Locked hard point";
+  } else if (String(point.sourceKind || "").startsWith("route-node:")) {
+    lockLabel = "Route node (main stop)";
+  }
+  return `
+    <article class="itinerary-stop" data-entity-key="${htmlEscape(point.id)}" data-entity-link="${htmlEscape(buildEntityLinkKey(point))}">
+      <strong>${pointNumber}. ${htmlEscape(point.title)}</strong>
+      <div class="meta">${lockLabel} (${htmlEscape(point.type || point.sourceKind || "stop")})</div>
+      <div class="meta">${formatDateTime(point.start)} ${point.end ? `-> ${formatDateTime(point.end)}` : ""}</div>
+      <div class="meta">${htmlEscape(point.city || point.locationLabel)}</div>
+      ${(!point.locked && !String(point.sourceKind || "").startsWith("route-node:")) ? `<div class="item-actions"><button type="button" data-action="remove-planned-stop" data-id="${point.id}">Remove interleaved stop</button></div>` : ""}
+    </article>
+  `;
+}
+
+function renderTransitSegmentBlock(from, to) {
+  const distance = haversineKm(from.lat, from.lng, to.lat, to.lng);
+  const estimateMinutes = Math.round((distance / 70) * 60);
+  const segmentKey = buildSegmentKey(from.id, to.id);
+  return `
+    <article class="itinerary-stop" data-segment-key="${htmlEscape(segmentKey)}">
+      <strong>Transit Segment</strong>
+      <div class="meta">${htmlEscape(from.title)} -> ${htmlEscape(to.title)}</div>
+      <div class="meta">Approx ${distance.toFixed(1)} km (${formatDurationMinutes(estimateMinutes)} by average road pace)</div>
+    </article>
+  `;
+}
+
+function getItineraryDayKey(startValue) {
+  const parsed = parseDateInput(startValue);
+  if (!parsed) return "unscheduled";
+  return parsed.toISOString().slice(0, 10);
+}
+
+function formatItineraryDayLabel(dayKey) {
+  if (dayKey === "unscheduled") return "Unscheduled";
+  const parsed = parseDateInput(dayKey);
+  if (!parsed) return dayKey;
+  return parsed.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
 }
 
 function handleItineraryAction(event) {
@@ -2100,7 +2238,7 @@ function getPersonalizedSuggestions(limit = 12) {
 }
 
 function renderSuggestions() {
-  const personalized = getPersonalizedSuggestions(12);
+  const personalized = getPersonalizedSuggestions(getExpertSuggestionCount(12));
   if (!personalized.length) {
     els.suggestionList.innerHTML = "<p>No suggestions available.</p>";
     return;
@@ -2629,6 +2767,8 @@ function handlePlaceAction(event) {
 function calculatePlanningWindows() {
   const hard = getSortedHardPoints();
   const minimumWindowMs = 45 * 60 * 1000;
+  const bufferHours = Math.max(0, Number(state.expertSettings?.hardPointBufferHours || 0));
+  const hardPointBufferMs = bufferHours * 60 * 60 * 1000;
   let start = parseDateInput(state.tripContext.startDate);
   let end = parseDateInput(state.tripContext.endDate, true);
 
@@ -2662,11 +2802,13 @@ function calculatePlanningWindows() {
     const hpStart = new Date(point.start);
     const hpEnd = new Date(point.end || point.start);
     if (hpEnd <= hpStart) hpEnd.setHours(hpEnd.getHours() + 1);
+    const blockedStart = new Date(hpStart.getTime() - hardPointBufferMs);
+    const blockedEnd = new Date(hpEnd.getTime() + hardPointBufferMs);
     return {
       id: point.id,
       title: point.title,
-      start: hpStart,
-      end: hpEnd,
+      start: blockedStart,
+      end: blockedEnd,
     };
   });
 
@@ -2739,6 +2881,7 @@ function buildUserTripContextSnapshot() {
       strategies: state.outlineDraft.strategies.slice(0, 6),
       updatedAt: state.outlineDraft.updatedAt,
     },
+    expertSettings: state.expertSettings,
     inferredTripIdeas: state.tripContext.inferredIdeas || [],
     memoryTopTags: Object.entries(state.memory.tagScores).sort((a, b) => b[1] - a[1]).slice(0, 8),
     memoryAvoidTags: Object.entries(state.memory.tagScores).sort((a, b) => a[1] - b[1]).slice(0, 6),
@@ -3682,7 +3825,7 @@ function getPossibleVisualCandidates() {
     ...state.lastLlmResults,
     ...(state.lastUnifiedSearch?.routeNodes || []),
     ...(state.lastUnifiedSearch?.detailStops || []),
-    ...getPersonalizedSuggestions(10),
+    ...getPersonalizedSuggestions(getExpertSuggestionCount(10)),
   ];
   const seen = new Set();
   return flattened
@@ -3732,13 +3875,15 @@ function getTripSpanDays() {
 }
 
 function renderMapLegend() {
+  const showRecommendations = state.expertSettings?.showRecommendationLayer !== false;
   els.mapLegend.innerHTML = `
     <span class="legend-chip">✈️ flight leg</span>
     <span class="legend-chip">🚆 rail leg</span>
     <span class="legend-chip">🚗 road leg</span>
     <span class="legend-chip">🚶 short hop</span>
     <span class="legend-chip">📍 hard point</span>
-    <span class="legend-chip">● recommendation</span>
+    ${showRecommendations ? "<span class='legend-chip'>● recommendation</span>" : ""}
+    <span class="legend-chip">⏺ click item to pin highlight</span>
   `;
 }
 
@@ -3766,8 +3911,11 @@ function getSegmentTransportType(from, to) {
   if (joined.includes("flight")) return "flight";
   if (joined.includes("train")) return "train";
   const km = haversineKm(from.lat, from.lng, to.lat, to.lng);
-  if (km > 700) return "flight";
-  if (km > 180) return "train";
+  const bias = state.expertSettings?.transportBias || "balanced";
+  const flightThreshold = bias === "flight-first" ? 450 : bias === "ground-first" ? 1200 : 700;
+  const trainThreshold = bias === "flight-first" ? 120 : bias === "ground-first" ? 280 : 180;
+  if (km > flightThreshold) return "flight";
+  if (km > trainThreshold) return "train";
   if (km > 25) return "drive";
   return "walk";
 }
@@ -3844,6 +3992,11 @@ function renderMap() {
   resetMapHighlightEntries();
 
   const mapElements = [];
+  const tripCoreElements = [];
+  const pushMapElement = (layer, includeInTripCore = false) => {
+    mapElements.push(layer);
+    if (includeInTripCore) tripCoreElements.push(layer);
+  };
   const sorted = getSortedHardPoints();
   sorted.forEach((point, index) => {
     if (!Number.isFinite(point.lat) || !Number.isFinite(point.lng)) return;
@@ -3858,7 +4011,7 @@ function renderMap() {
       linkKeys: [buildEntityLinkKey(point)],
       enableHover: true,
     });
-    mapElements.push(marker);
+    pushMapElement(marker, true);
   });
 
   const activeRouteNodes = getSortedActiveRouteNodes();
@@ -3879,7 +4032,7 @@ function renderMap() {
       baseStyle: style,
       enableHover: true,
     });
-    mapElements.push(marker);
+    pushMapElement(marker, true);
   });
 
   const plannedStops = getSortedPlannedStops();
@@ -3900,7 +4053,7 @@ function renderMap() {
       baseStyle: style,
       enableHover: true,
     });
-    mapElements.push(marker);
+    pushMapElement(marker, true);
   });
 
   state.softPois.forEach((poi) => {
@@ -3921,7 +4074,7 @@ function renderMap() {
       baseStyle: style,
       enableHover: true,
     });
-    mapElements.push(marker);
+    pushMapElement(marker, true);
   });
 
   const timelinePoints = getTimelineItems().filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng));
@@ -3953,7 +4106,7 @@ function renderMap() {
         },
         enableHover: true,
       });
-      mapElements.push(line);
+      pushMapElement(line, true);
 
       const mid = getPolylineMidpoint(segmentCoords);
       if (mid) {
@@ -3967,7 +4120,7 @@ function renderMap() {
           interactive: false,
         });
         marker.addTo(layers.itineraryPath);
-        mapElements.push(marker);
+        pushMapElement(marker, true);
       }
     }
   } else if (sorted.length >= 2) {
@@ -3975,7 +4128,7 @@ function renderMap() {
       .filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng))
       .map((point) => [point.lat, point.lng]);
     const path = L.polyline(coords, { color: "#355f9e", weight: 3, dashArray: "6,6" }).addTo(layers.itineraryPath);
-    mapElements.push(path);
+    pushMapElement(path, true);
   }
 
   if (state.routeComparison?.results) {
@@ -3988,7 +4141,7 @@ function renderMap() {
       })
         .bindPopup(`${route.profile}: ${route.distanceKm.toFixed(1)} km / ${formatDurationMinutes(route.durationMinutes)}`)
         .addTo(layers.routes);
-      mapElements.push(line);
+      pushMapElement(line, true);
     });
   }
 
@@ -4009,7 +4162,7 @@ function renderMap() {
       baseStyle: style,
       enableHover: true,
     });
-    mapElements.push(circle);
+    pushMapElement(circle, false);
   });
 
   (state.lastUnifiedSearch?.routeNodes || []).forEach((item) => {
@@ -4029,7 +4182,7 @@ function renderMap() {
       baseStyle: style,
       enableHover: true,
     });
-    mapElements.push(marker);
+    pushMapElement(marker, false);
   });
   (state.lastUnifiedSearch?.detailStops || []).forEach((item) => {
     if (!Number.isFinite(item.lat) || !Number.isFinite(item.lng)) return;
@@ -4048,7 +4201,7 @@ function renderMap() {
       baseStyle: style,
       enableHover: true,
     });
-    mapElements.push(marker);
+    pushMapElement(marker, false);
   });
 
   state.lastLlmResults.forEach((item) => {
@@ -4068,7 +4221,7 @@ function renderMap() {
       baseStyle: style,
       enableHover: true,
     });
-    mapElements.push(marker);
+    pushMapElement(marker, false);
   });
 
   state.lastPlaces.forEach((item) => {
@@ -4089,33 +4242,40 @@ function renderMap() {
       baseStyle: style,
       enableHover: true,
     });
-    mapElements.push(marker);
+    pushMapElement(marker, false);
   });
 
-  const suggestions = getPersonalizedSuggestions(12);
-  suggestions.forEach((item) => {
-    if (!Number.isFinite(item.lat) || !Number.isFinite(item.lng)) return;
-    const style = {
-      radius: 4.5,
-      color: "#55739d",
-      fillColor: "#8da7cf",
-      fillOpacity: 0.66,
-      opacity: 0.82,
-    };
-    const marker = L.circleMarker([item.lat, item.lng], style)
-      .bindPopup(`<strong>${htmlEscape(item.title)}</strong><br>Recommendation card`);
-    marker.addTo(layers.suggestions);
-    registerMapLayer(marker, {
-      entityKeys: [item.id],
-      linkKeys: [buildEntityLinkKey(item)],
-      baseStyle: style,
-      enableHover: true,
+  if (state.expertSettings?.showRecommendationLayer !== false) {
+    const suggestions = getPersonalizedSuggestions(getExpertSuggestionCount(12));
+    suggestions.forEach((item) => {
+      if (!Number.isFinite(item.lat) || !Number.isFinite(item.lng)) return;
+      const style = {
+        radius: 4.5,
+        color: "#55739d",
+        fillColor: "#8da7cf",
+        fillOpacity: 0.66,
+        opacity: 0.82,
+      };
+      const marker = L.circleMarker([item.lat, item.lng], style)
+        .bindPopup(`<strong>${htmlEscape(item.title)}</strong><br>Recommendation card`);
+      marker.addTo(layers.suggestions);
+      registerMapLayer(marker, {
+        entityKeys: [item.id],
+        linkKeys: [buildEntityLinkKey(item)],
+        baseStyle: style,
+        enableHover: true,
+      });
+      pushMapElement(marker, false);
     });
-    mapElements.push(marker);
-  });
+  }
 
-  if (mapElements.length) {
-    const group = L.featureGroup(mapElements);
+  const focusMode = state.expertSettings?.mapFocusMode || "trip-core";
+  const autoFit = state.expertSettings?.mapAutoFit !== false;
+  const focusElements = focusMode === "all"
+    ? mapElements
+    : (tripCoreElements.length ? tripCoreElements : mapElements);
+  if (autoFit && focusElements.length) {
+    const group = L.featureGroup(focusElements);
     map.fitBounds(group.getBounds().pad(0.15), { maxZoom: 13 });
   }
   applyMapHighlight();
@@ -4294,7 +4454,9 @@ function init() {
   bindEvents();
   hydrateProfileForm();
   hydrateTripContextForm();
+  hydrateExpertSettingsForm();
   hydrateLlmForm();
+  interactionController.setPinningEnabled(state.expertSettings?.persistentSelection !== false);
   setDefaultEventDate();
   ensureConversationInitialized();
   renderAll();

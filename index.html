@@ -108,6 +108,70 @@
       </section>
 
       <section class="card">
+        <h2>Expert TripMind Settings</h2>
+        <p class="hint">Tune how the planner fills gaps, scores options, and visualizes your trip.</p>
+        <form id="expertSettingsForm" class="stack">
+          <label>
+            Planner mode
+            <select id="expertPlannerMode">
+              <option value="expert-balanced">Expert balanced</option>
+              <option value="exploration-heavy">Exploration heavy</option>
+              <option value="efficiency-heavy">Efficiency heavy</option>
+            </select>
+          </label>
+          <label>
+            Suggestion breadth
+            <input id="expertSuggestionCount" type="number" min="4" max="30" value="12">
+          </label>
+          <label>
+            Daily stop target
+            <input id="expertDailyStopTarget" type="number" min="1" max="8" value="3">
+          </label>
+          <label>
+            Hard-point buffer hours
+            <input id="expertHardPointBufferHours" type="number" min="0" max="12" step="0.5" value="1.5">
+          </label>
+          <label>
+            Event intensity (0-5)
+            <input id="expertEventIntensity" type="range" min="0" max="5" step="1" value="3">
+          </label>
+          <label>
+            Transport bias
+            <select id="expertTransportBias">
+              <option value="balanced">Balanced</option>
+              <option value="ground-first">Ground-first</option>
+              <option value="flight-first">Flight-first</option>
+            </select>
+          </label>
+          <label class="checkbox-inline">
+            <input id="expertGroupByDay" type="checkbox" checked>
+            Group itinerary by day
+          </label>
+          <label class="checkbox-inline">
+            <input id="expertMapAutoFit" type="checkbox" checked>
+            Auto-fit map after updates
+          </label>
+          <label>
+            Map focus mode
+            <select id="expertMapFocusMode">
+              <option value="trip-core">Trip core (focused)</option>
+              <option value="all">All visible layers</option>
+            </select>
+          </label>
+          <label class="checkbox-inline">
+            <input id="expertShowRecommendations" type="checkbox" checked>
+            Show recommendation layer on map
+          </label>
+          <label class="checkbox-inline">
+            <input id="expertPersistentSelection" type="checkbox" checked>
+            Enable click-to-pin linked highlights
+          </label>
+          <button type="submit">Save expert settings</button>
+        </form>
+        <div id="expertSettingsSummary" class="memory-summary"></div>
+      </section>
+
+      <section class="card">
         <h2>Conversation Copilot</h2>
         <p class="hint">Long conversation to clarify preferences, explore side-tracks, and tune memory.</p>
         <form id="conversationForm" class="stack">
