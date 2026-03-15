@@ -127,9 +127,9 @@ function createAxialHexes(radius) {
 }
 
 function createBoardGeometry(canvasWidth, canvasHeight) {
-  const hexSize = 60;
+  const hexSize = 74;
   const centerX = canvasWidth * 0.47;
-  const centerY = canvasHeight * 0.49;
+  const centerY = canvasHeight * 0.5;
 
   const nodeByKey = new Map();
   const edgeByKey = new Map();
