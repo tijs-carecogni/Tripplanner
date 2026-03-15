@@ -254,6 +254,7 @@ function bindElements() {
     "routeStripVisual",
     "activityMixVisual",
     "tripPulseVisual",
+    "possibleVisuals",
     "mapLegend",
     "itineraryList",
     "refreshSuggestionsBtn",
@@ -3448,6 +3449,7 @@ function renderExperienceVisuals() {
   renderRouteStripVisual();
   renderActivityMixVisual();
   renderTripPulseVisual();
+  renderPossibleVisuals();
   renderMapLegend();
 }
 
@@ -3565,6 +3567,84 @@ function renderTripPulseVisual() {
     `;
   });
   els.tripPulseVisual.innerHTML = bars.join("");
+}
+
+function renderPossibleVisuals() {
+  const strategies = (state.outlineDraft.strategies || []).length
+    ? state.outlineDraft.strategies
+    : generateFillStrategies(null);
+  if (!strategies.length) {
+    els.possibleVisuals.innerHTML = "<div class='route-node-chip'>Generate outline/strategies to see possible plan visuals.</div>";
+    return;
+  }
+
+  const candidatePool = getPossibleVisualCandidates();
+  const cards = strategies.slice(0, 4).map((strategy) => {
+    const tags = (strategy.tags || []).map((tag) => normalizePreferenceTag(tag)).filter(Boolean);
+    const fitScore = getStrategyFitScore(tags);
+    const fitPct = Math.max(8, Math.min(100, 50 + (fitScore * 7)));
+    const matches = candidatePool
+      .map((candidate) => ({
+        ...candidate,
+        matchCount: candidate.tags.filter((tag) => tags.includes(tag)).length,
+      }))
+      .filter((candidate) => candidate.matchCount > 0)
+      .sort((a, b) => b.matchCount - a.matchCount)
+      .slice(0, 3);
+    const picks = matches.length
+      ? matches
+        .map((match) => `<span class="possible-pick" data-entity-key="${htmlEscape(match.id)}" data-entity-link="${htmlEscape(buildEntityLinkKey(match))}">${htmlEscape(match.title)}</span>`)
+        .join("")
+      : "<span class='possible-empty'>No direct matches yet - run search to enrich options.</span>";
+
+    return `
+      <article class="possible-card">
+        <div class="possible-head">
+          <strong>${htmlEscape(strategy.title || "Possible direction")}</strong>
+          <span class="possible-score">${fitScore >= 0 ? "+" : ""}${fitScore} fit</span>
+        </div>
+        <div class="meta">${htmlEscape(strategy.reason || "Possible itinerary style generated from your profile.")}</div>
+        <div class="chip-list">${tags.map((tag) => `<span class="chip">${htmlEscape(tag)}</span>`).join("")}</div>
+        <div class="possible-track"><span class="possible-fill" style="width:${fitPct}%"></span></div>
+        <div class="possible-picks">${picks}</div>
+      </article>
+    `;
+  });
+  els.possibleVisuals.innerHTML = cards.join("");
+}
+
+function getPossibleVisualCandidates() {
+  const flattened = [
+    ...state.lastPlaces,
+    ...state.lastEvents,
+    ...state.lastLlmResults,
+    ...(state.lastUnifiedSearch?.routeNodes || []),
+    ...(state.lastUnifiedSearch?.detailStops || []),
+    ...getPersonalizedSuggestions(10),
+  ];
+  const seen = new Set();
+  return flattened
+    .map((item) => ({
+      id: item.id,
+      title: item.title || "Untitled",
+      city: item.city || "",
+      tags: (Array.isArray(item.tags) ? item.tags : parseTags(item.tags || item.kind || item.type || item.category || "option"))
+        .map((tag) => normalizePreferenceTag(tag))
+        .filter(Boolean),
+    }))
+    .filter((item) => {
+      if (!item.id || seen.has(item.id)) return false;
+      seen.add(item.id);
+      return true;
+    });
+}
+
+function getStrategyFitScore(tags) {
+  if (!tags.length) return 0;
+  const memoryScore = tags.reduce((sum, tag) => sum + (state.memory.tagScores[tag] || 0), 0);
+  const likes = tags.reduce((sum, tag) => sum + (state.conversation.learnedLikes?.[tag] || 0), 0);
+  const dislikes = tags.reduce((sum, tag) => sum + (state.conversation.learnedDislikes?.[tag] || 0), 0);
+  return Math.round(memoryScore + likes - dislikes);
 }
 
 function getTripSpanDays() {

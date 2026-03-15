@@ -263,6 +263,7 @@ button:hover {
 .itinerary-stop,
 .route-node-chip,
 .route-segment-chip,
+.possible-card,
 .chat-message {
   transition: transform 0.14s ease, box-shadow 0.14s ease, opacity 0.14s ease, filter 0.14s ease, border-color 0.14s ease;
 }
@@ -456,6 +457,72 @@ button:hover {
 .pulse-label {
   font-size: 0.62rem;
   color: #55709a;
+}
+
+.possible-board {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.55rem;
+  margin-top: 0.8rem;
+}
+
+.possible-card {
+  border: 1px solid #d3e1f8;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #f8fbff, #f2f7ff);
+  padding: 0.55rem;
+}
+
+.possible-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.possible-score {
+  font-size: 0.72rem;
+  border-radius: 999px;
+  padding: 0.18rem 0.46rem;
+  background: #e7effd;
+  color: #2d4f86;
+}
+
+.possible-track {
+  margin-top: 0.35rem;
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  background: #e8effb;
+  overflow: hidden;
+}
+
+.possible-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #4f7fcd, #78aaf6);
+}
+
+.possible-picks {
+  margin-top: 0.45rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.28rem;
+}
+
+.possible-pick {
+  border-radius: 999px;
+  padding: 0.15rem 0.44rem;
+  border: 1px solid #ccdbf6;
+  background: #eef4ff;
+  color: #264979;
+  font-size: 0.7rem;
+}
+
+.possible-empty {
+  font-size: 0.74rem;
+  color: #5f7396;
 }
 
 .map-legend {
