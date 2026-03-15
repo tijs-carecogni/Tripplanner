@@ -32,6 +32,7 @@ let layers;
 let state = loadState();
 const interactionController = createHighlightController();
 const SIDEBAR_COLLAPSE_STORAGE_KEY = "mindtrip_sidebar_collapse_v1";
+const MOBILE_VIEW_STORAGE_KEY = "mindtrip_mobile_view_v1";
 
 function createDefaultState() {
   return {
@@ -195,6 +196,9 @@ function setStatus(message, isError = false) {
 function bindElements() {
   const ids = [
     "statusMessage",
+    "mobileViewTabs",
+    "mobileTabPlan",
+    "mobileTabControls",
     "profileForm",
     "profileName",
     "homeBase",
@@ -340,6 +344,9 @@ function initMap() {
 }
 
 function bindEvents() {
+  if (els.mobileViewTabs) {
+    els.mobileViewTabs.addEventListener("click", handleMobileViewToggle);
+  }
   els.profileForm.addEventListener("submit", handleSaveProfile);
   els.tripContextForm.addEventListener("submit", handleSaveTripContext);
   els.expertSettingsForm.addEventListener("submit", handleSaveExpertSettings);
@@ -469,6 +476,7 @@ function setupSidebarCollapsibles() {
   const cards = Array.from(document.querySelectorAll(".sidebar .card"));
   if (!cards.length) return;
   const collapseState = loadSidebarCollapseState();
+  const isMobileViewport = window.matchMedia("(max-width: 1199px)").matches;
 
   cards.forEach((card, index) => {
     if (card.dataset.collapsibleReady === "true") return;
@@ -486,7 +494,7 @@ function setupSidebarCollapsibles() {
     toggle.className = "card-collapse-btn";
     row.appendChild(toggle);
 
-    const defaultCollapsed = index >= 3;
+    const defaultCollapsed = isMobileViewport ? index >= 1 : index >= 3;
     const initialCollapsed = typeof collapseState[cardKey] === "boolean"
       ? collapseState[cardKey]
       : defaultCollapsed;
@@ -509,6 +517,44 @@ function setupSidebarCollapsibles() {
 
     card.dataset.collapsibleReady = "true";
   });
+}
+
+function applyMobileView(view) {
+  const normalized = view === "controls" ? "controls" : "plan";
+  document.body.dataset.mobileView = normalized;
+  if (els.mobileTabPlan) {
+    const planActive = normalized === "plan";
+    els.mobileTabPlan.classList.toggle("is-active", planActive);
+    els.mobileTabPlan.setAttribute("aria-pressed", planActive ? "true" : "false");
+  }
+  if (els.mobileTabControls) {
+    const controlsActive = normalized === "controls";
+    els.mobileTabControls.classList.toggle("is-active", controlsActive);
+    els.mobileTabControls.setAttribute("aria-pressed", controlsActive ? "true" : "false");
+  }
+}
+
+function initializeMobileView() {
+  let savedView = "plan";
+  try {
+    const stored = localStorage.getItem(MOBILE_VIEW_STORAGE_KEY);
+    if (stored === "plan" || stored === "controls") savedView = stored;
+  } catch {
+    savedView = "plan";
+  }
+  applyMobileView(savedView);
+}
+
+function handleMobileViewToggle(event) {
+  const button = event.target.closest("button[data-mobile-view]");
+  if (!button) return;
+  const nextView = button.dataset.mobileView === "controls" ? "controls" : "plan";
+  applyMobileView(nextView);
+  try {
+    localStorage.setItem(MOBILE_VIEW_STORAGE_KEY, nextView);
+  } catch {
+    // ignore storage failures
+  }
 }
 
 function handleSaveProfile(event) {
@@ -4472,6 +4518,7 @@ function setDefaultEventDate() {
 
 function init() {
   bindElements();
+  initializeMobileView();
   initMap();
   setupSidebarCollapsibles();
   bindEvents();

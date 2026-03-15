@@ -18,11 +18,11 @@ body::after {
 .topbar {
   background: #0e1726;
   color: #f2f6ff;
-  padding: 0.72rem 0.88rem;
+  padding: 0.76rem 0.9rem;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 0.45rem;
+  gap: 0.5rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: 0 8px 18px rgba(0, 0, 0, 0.18);
   position: sticky;
@@ -32,13 +32,13 @@ body::after {
 
 .topbar h1 {
   margin: 0;
-  font-size: 1.08rem;
+  font-size: 1.14rem;
   letter-spacing: 0.01em;
 }
 
 .topbar p {
   margin: 0.16rem 0 0;
-  font-size: 0.74rem;
+  font-size: 0.78rem;
   opacity: 0.82;
 }
 
@@ -46,19 +46,48 @@ body::after {
   background: #16263d;
   border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 999px;
-  padding: 0.28rem 0.62rem;
+  padding: 0.3rem 0.65rem;
   min-width: 0;
   text-align: center;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
-  font-size: 0.7rem;
+  font-size: 0.74rem;
   font-weight: 600;
+}
+
+.mobile-view-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.42rem;
+  padding: 0.58rem 0.7rem 0.4rem;
+  background: #f5f6f8;
+  border-bottom: 1px solid #e1e5eb;
+  position: sticky;
+  top: 64px;
+  z-index: 15;
+}
+
+.mobile-view-tabs button {
+  border-radius: 999px;
+  padding: 0.45rem 0.64rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  background: #ffffff;
+  color: #334155;
+  border: 1px solid #d2dae4;
+  box-shadow: none;
+}
+
+.mobile-view-tabs button.is-active {
+  background: #1f4d8c;
+  color: #f8fbff;
+  border-color: #1f4d8c;
 }
 
 .layout {
   display: flex;
   flex-direction: column;
   gap: 0.76rem;
-  padding: 0.7rem;
+  padding: 0.68rem;
   max-width: 100%;
   margin: 0 auto;
   min-height: calc(100vh - 94px);
@@ -77,6 +106,14 @@ body::after {
 
 .sidebar {
   order: 2;
+}
+
+body[data-mobile-view="plan"] .sidebar {
+  display: none;
+}
+
+body[data-mobile-view="controls"] .workspace {
+  display: none;
 }
 
 .card {
@@ -195,7 +232,7 @@ body::after {
 label {
   display: flex;
   flex-direction: column;
-  font-size: 0.8rem;
+  font-size: 0.84rem;
   gap: 0.25rem;
   color: #334155;
   font-weight: 600;
@@ -240,7 +277,7 @@ select,
 textarea {
   background: #ffffff;
   color: #1f2937;
-  font-size: 0.84rem;
+  font-size: 0.89rem;
 }
 
 input:focus,
@@ -292,12 +329,12 @@ button:active {
 
 .list-item h4 {
   margin: 0;
-  font-size: 0.95rem;
+  font-size: 1rem;
 }
 
 .meta {
   color: #6b7280;
-  font-size: 0.8rem;
+  font-size: 0.83rem;
   margin-top: 0.3rem;
 }
 
@@ -800,6 +837,10 @@ button:active {
 }
 
 @media (min-width: 1200px) {
+  .mobile-view-tabs {
+    display: none;
+  }
+
   .topbar {
     padding: 1.05rem 1.25rem;
     flex-direction: row;
@@ -835,6 +876,7 @@ button:active {
   .workspace,
   .sidebar {
     order: 0;
+    display: flex;
   }
 
   .workspace > .card {
