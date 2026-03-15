@@ -2,6 +2,16 @@
 
 Generated showcase images for the current prototype UI.
 
+## Regenerate after each improvement
+
+Use:
+
+```bash
+./scripts/capture_demo_screenshots.sh
+```
+
+It loads `bootstrap-demo.html` (demo state), captures a full screenshot, and refreshes hero crops.
+
 ## Hero set
 
 - `10-demo-full.png` – full app with populated demo state

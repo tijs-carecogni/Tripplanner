@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TripMind demo bootstrap</title>
+</head>
+<body>
+  <p>Loading demo state…</p>
+  <script>
+    const STORAGE_KEY = "mindtrip_state_v1";
+    const state = {
+      profile: {
+        name: "Alex Explorer",
+        homeBase: "Berlin",
+        budget: "mid",
+        pace: "balanced",
+        interests: ["architecture", "hiking", "art", "food", "events"],
+      },
+      tripContext: {
+        startDate: "2026-04-09",
+        endDate: "2026-05-01",
+        primaryDestination: "Japan",
+        mustInclude: ["architecture", "hike", "art", "onsen"],
+        avoid: ["crowded tours"],
+        styleNotes: "Two anchor experiences per day with flexible evenings.",
+        likedExamples: [
+          "MTB downhill near a volcano in Arequipa",
+          "Insel Hombroich and Boros collection",
+          "Hiking near Karakol",
+        ],
+        inferredIdeas: ["Tokyo urban + design", "Naoshima art immersion", "island buffer days"],
+      },
+      conversation: {
+        mode: "main-planning",
+        sideTrackTopic: "",
+        messages: [
+          {
+            id: "msg-demo-1",
+            role: "assistant",
+            text: "I prepared high-fit directions. Click one option to pin linked highlights across map, itinerary and cards.",
+            when: "2026-03-15T10:00:00.000Z",
+            options: [
+              {
+                id: "conv-opt-1",
+                entityKey: "llm-1",
+                linkKey: "link:naoshima-art-loop@naoshima",
+                title: "Naoshima art loop",
+                kind: "activity",
+                city: "Naoshima",
+                reason: "High fit with architecture + contemporary art taste.",
+                tags: ["art", "architecture", "museum"],
+              },
+              {
+                id: "conv-opt-2",
+                entityKey: "ev-1",
+                linkKey: "link:shimokitazawa-night-jazz@tokyo",
+                title: "Shimokitazawa night jazz",
+                kind: "event",
+                city: "Tokyo",
+                reason: "Event-led evening with low transition cost.",
+                tags: ["event", "music", "nightlife"],
+              },
+            ],
+          },
+        ],
+        learnedLikes: { architecture: 5, art: 4, hike: 3, market: 2 },
+        learnedDislikes: { crowded: 2 },
+      },
+      hardPoints: [
+        { id: "hp-1", title: "Arrive Tokyo", type: "flight", start: "2026-04-09T10:30", end: "2026-04-09T13:00", city: "Tokyo", locationLabel: "Haneda Airport", lat: 35.5494, lng: 139.7798, bookingRef: "HND409", notes: "Airport transfer booked", createdAt: "2026-03-01T10:00:00.000Z" },
+        { id: "hp-2", title: "Alpine Route day", type: "tour", start: "2026-04-16T07:00", end: "2026-04-16T20:00", city: "Toyama", locationLabel: "Tateyama Kurobe Alpine Route", lat: 36.5753, lng: 137.4812, bookingRef: "ALP416", notes: "Fixed booking", createdAt: "2026-03-01T10:01:00.000Z" },
+        { id: "hp-3", title: "Naoshima stay", type: "hotel", start: "2026-04-19T15:00", end: "2026-04-23T10:00", city: "Naoshima", locationLabel: "Honmura district", lat: 34.4592, lng: 133.9978, bookingRef: "NSH419", notes: "Island base", createdAt: "2026-03-01T10:02:00.000Z" },
+        { id: "hp-4", title: "Fly to Ishigaki", type: "flight", start: "2026-04-23T12:30", end: "2026-04-23T15:30", city: "Ishigaki", locationLabel: "Painushima Ishigaki Airport", lat: 24.3968, lng: 124.2451, bookingRef: "ISG423", notes: "", createdAt: "2026-03-01T10:03:00.000Z" },
+        { id: "hp-5", title: "Fly back Tokyo", type: "flight", start: "2026-04-26T11:00", end: "2026-04-26T14:00", city: "Tokyo", locationLabel: "Haneda Airport", lat: 35.5494, lng: 139.7798, bookingRef: "HND426", notes: "", createdAt: "2026-03-01T10:04:00.000Z" },
+      ],
+      routeSets: [
+        {
+          id: "set-1",
+          name: "Japan main route",
+          description: "Primary hubs and transitions",
+          active: true,
+          createdAt: "2026-03-01T10:05:00.000Z",
+          nodes: [
+            { id: "node-1", title: "Tokyo East", type: "district", city: "Tokyo", locationLabel: "Asakusa + Ueno belt", lat: 35.7156, lng: 139.7967, start: "2026-04-10T09:00", end: "", notes: "", tags: ["architecture", "market"], sourceKind: "route-node", createdAt: "2026-03-01T10:05:30.000Z" },
+            { id: "node-2", title: "Kanazawa art day", type: "main-location", city: "Kanazawa", locationLabel: "21st Century Museum area", lat: 36.5608, lng: 136.6566, start: "2026-04-17T10:00", end: "", notes: "", tags: ["art", "design"], sourceKind: "route-node", createdAt: "2026-03-01T10:06:00.000Z" },
+          ],
+        },
+      ],
+      plannedStops: [
+        { id: "plan-1", title: "Boros-style private collection visit", type: "art", sourceKind: "llm-itinerary", start: "2026-04-11T14:00", end: "2026-04-11T16:00", city: "Tokyo", locationLabel: "Roppongi contemporary gallery", lat: 35.6629, lng: 139.7312, bookingRef: "", notes: "Generated from taste memory", createdAt: "2026-03-01T10:07:00.000Z" },
+        { id: "plan-2", title: "Chiba village overnight (no planning)", type: "no-planning", sourceKind: "interleave", start: "2026-04-14T18:00", end: "2026-04-15T10:00", city: "Chiba", locationLabel: "Countryside stay", lat: 35.6074, lng: 140.1065, bookingRef: "", notes: "", createdAt: "2026-03-01T10:08:00.000Z" },
+        { id: "plan-3", title: "Naoshima architecture bike circuit", type: "hike", sourceKind: "detail-stop", start: "2026-04-20T09:00", end: "2026-04-20T13:00", city: "Naoshima", locationLabel: "Art House Project + coast route", lat: 34.4596, lng: 133.9967, bookingRef: "", notes: "", createdAt: "2026-03-01T10:09:00.000Z" },
+        { id: "plan-4", title: "Ishigaki reef + hill trail", type: "nature", sourceKind: "llm-itinerary", start: "2026-04-24T08:30", end: "2026-04-24T14:00", city: "Ishigaki", locationLabel: "Kabira Bay + Nosoko hike", lat: 24.4509, lng: 124.1572, bookingRef: "", notes: "", createdAt: "2026-03-01T10:10:00.000Z" },
+      ],
+      softPois: [
+        { id: "poi-1", title: "Shimokitazawa night jazz", kind: "event", sourceKind: "event", city: "Tokyo", locationQuery: "Shimokitazawa jazz club", startHint: "2026-04-12T20:30", notes: "Tentative option", tags: ["event", "music", "nightlife"], lat: 35.6617, lng: 139.6689, createdAt: "2026-03-01T10:11:00.000Z" },
+      ],
+      customSuggestions: [
+        { id: "custom-1", title: "Tokyo brutalist architecture walk", city: "Tokyo", tags: ["architecture", "walking"], budget: "mid", pace: "balanced", type: "custom", lat: 35.6702, lng: 139.7631, description: "User-created suggestion." },
+      ],
+      lastPlaces: [
+        { id: "lp-1", title: "TeamLab Borderless", city: "Tokyo", kind: "main-location", category: "art", description: "Immersive art museum", tags: ["art", "museum"], lat: 35.6269, lng: 139.7845 },
+        { id: "lp-2", title: "Naoshima Art House", city: "Naoshima", kind: "trip", category: "architecture", description: "Island art route", tags: ["architecture", "art"], lat: 34.4602, lng: 133.9956 },
+      ],
+      lastEvents: [
+        { id: "ev-1", title: "Shimokitazawa Night Jazz", city: "Tokyo", date: "2026-04-12", category: "music", venue: "Basement stage", tags: ["music", "nightlife"], lat: 35.6618, lng: 139.6687 },
+      ],
+      lastLlmResults: [
+        { id: "llm-1", title: "Naoshima art loop", kind: "main-location", city: "Naoshima", date: "2026-04-20", startHint: "2026-04-20T09:00", tags: ["art", "architecture"], description: "High-fit match", locationQuery: "Naoshima", lat: 34.4598, lng: 133.9974 },
+      ],
+      lastUnifiedSearch: {
+        query: "architecture + event mix",
+        routeNodes: [{ id: "ur-1", title: "Kanazawa design district", city: "Kanazawa", kind: "main-location", tags: ["design", "architecture"], description: "Route-level candidate", lat: 36.5621, lng: 136.6624 }],
+        detailStops: [{ id: "ud-1", title: "Ando museum stop", city: "Naoshima", kind: "detail-place", tags: ["architecture", "museum"], description: "Detail candidate", lat: 34.4588, lng: 133.9972 }],
+        generatedAt: "2026-03-15T10:20:00.000Z",
+      },
+      outlineDraft: {
+        blocks: [
+          { id: "outline-1", label: "Tokyo pre-Alpine", start: "2026-04-10T08:00:00.000Z", end: "2026-04-15T20:00:00.000Z", hours: 84, city: "Tokyo", theme: "architecture", reason: "Urban + market balance", tags: ["architecture", "market"] },
+          { id: "outline-2", label: "Post-Naoshima buffer", start: "2026-04-23T16:00:00.000Z", end: "2026-04-26T10:00:00.000Z", hours: 66, city: "Ishigaki", theme: "nature", reason: "Recovery + adventure mix", tags: ["nature", "hike"] },
+        ],
+        strategies: [
+          { id: "strategy-1", title: "Balanced mix: architecture + food", reason: "Day split with flexible evenings", tags: ["architecture", "food", "balanced"] },
+          { id: "strategy-2", title: "Event-led evenings", reason: "Keep afternoons open for local events", tags: ["event", "nightlife", "music"] },
+          { id: "strategy-3", title: "Nature-heavy island buffer", reason: "Use Ishigaki for hikes + coast", tags: ["nature", "hike", "water"] },
+        ],
+        generalStrategy: { title: "Balanced mix: architecture + food", tags: ["architecture", "food"], updatedAt: "2026-03-15T10:21:00.000Z" },
+        blockTweaks: { "outline-2": { title: "Nature-heavy island buffer", tags: ["nature", "hike"], updatedAt: "2026-03-15T10:22:00.000Z" } },
+        focusedBlockId: "",
+        updatedAt: "2026-03-15T10:22:00.000Z",
+      },
+      routeComparison: {
+        mode: "whole-trip",
+        generatedAt: "2026-03-15T10:30:00.000Z",
+        results: [{ profile: "driving", distanceKm: 312.4, durationMinutes: 378, geometry: [[35.71, 139.80], [36.56, 136.66], [34.46, 134.0], [24.40, 124.25]], alternatives: [{ label: "Alt 1", distanceKm: 328, durationMinutes: 405 }] }],
+      },
+      expertSettings: {
+        plannerMode: "expert-balanced",
+        suggestionCount: 12,
+        dailyStopTarget: 3,
+        hardPointBufferHours: 1.5,
+        eventIntensity: 3,
+        transportBias: "balanced",
+        groupItineraryByDay: true,
+        mapAutoFit: true,
+        mapFocusMode: "trip-core",
+        showRecommendationLayer: true,
+        persistentSelection: true,
+      },
+      llm: { provider: "openai-compatible", endpoint: "https://openrouter.ai/api/v1/chat/completions", model: "openai/gpt-5-mini", deployment: "", apiVersion: "2025-01-01-preview", apiKey: "", enabled: false },
+      memory: {
+        itemRatings: { "llm-1": 5, "ev-1": 4, "plan-3": 5 },
+        ratingsHistory: [
+          { itemId: "llm-1", title: "Naoshima art loop", rating: 5, kind: "llm-main-location", tags: ["art", "architecture"], city: "Naoshima", when: "2026-03-10T10:00:00.000Z" },
+          { itemId: "ev-1", title: "Shimokitazawa Night Jazz", rating: 4, kind: "event", tags: ["music", "nightlife"], city: "Tokyo", when: "2026-03-11T10:00:00.000Z" },
+        ],
+        tagScores: { architecture: 6, art: 5, hike: 4, event: 3, music: 2, crowded: -3 },
+        cityScores: { tokyo: 4, naoshima: 5, ishigaki: 3 },
+      },
+    };
+
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    location.replace("/index.html");
+  </script>
+</body>
+</html>

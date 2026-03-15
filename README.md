@@ -123,9 +123,12 @@ Then open:
 - `src/constants.js` - static configuration and seeded travel data catalogs
 - `src/utils.js` - shared utility helpers (IDs, tags, date/time, distance, formatting)
 - `src/interaction.js` - shared interaction primitives (entity-link keys + cross-component highlight controller)
+- `scripts/capture_demo_screenshots.sh` - regenerates demo-filled hero screenshots for UI iteration
+- `screenshots/bootstrap-demo.html` - localStorage bootstrap page used by screenshot workflow
 
 ## Notes
 
 - Browser `localStorage` is used to persist profile, hard points, interleaved stops, memory scores, ratings, and custom suggestions.
 - LLM API key is stored in browser localStorage for convenience in this MVP.
 - External map/routing/geocoding data depends on availability of public services.
+- UI iteration screenshots can be refreshed with `./scripts/capture_demo_screenshots.sh`.
