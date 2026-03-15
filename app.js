@@ -90,6 +90,21 @@ function createDefaultState() {
       pace: "balanced",
       interests: [],
     },
+    tripContext: {
+      startDate: "",
+      endDate: "",
+      primaryDestination: "",
+      mustInclude: [],
+      avoid: [],
+      styleNotes: "",
+    },
+    conversation: {
+      mode: "main-planning",
+      sideTrackTopic: "",
+      messages: [],
+      learnedLikes: {},
+      learnedDislikes: {},
+    },
     hardPoints: [],
     routeSets: [],
     plannedStops: [],
@@ -126,6 +141,14 @@ function loadState() {
       ...defaults,
       ...parsed,
       profile: { ...defaults.profile, ...(parsed.profile || {}) },
+      tripContext: { ...defaults.tripContext, ...(parsed.tripContext || {}) },
+      conversation: {
+        ...defaults.conversation,
+        ...(parsed.conversation || {}),
+        messages: Array.isArray(parsed?.conversation?.messages) ? parsed.conversation.messages : [],
+        learnedLikes: parsed?.conversation?.learnedLikes || {},
+        learnedDislikes: parsed?.conversation?.learnedDislikes || {},
+      },
       memory: { ...defaults.memory, ...(parsed.memory || {}) },
       hardPoints: Array.isArray(parsed.hardPoints) ? parsed.hardPoints : [],
       routeSets: Array.isArray(parsed.routeSets) ? parsed.routeSets : [],
@@ -194,6 +217,25 @@ function bindElements() {
     "travelPace",
     "interests",
     "memorySummary",
+    "tripContextForm",
+    "tripStartDate",
+    "tripEndDate",
+    "tripPrimaryDestination",
+    "tripMustInclude",
+    "tripAvoid",
+    "tripStyleNotes",
+    "llmItineraryForm",
+    "itineraryGenerationRequest",
+    "itineraryGenerationLimit",
+    "itineraryReplaceGenerated",
+    "tripContextSummary",
+    "conversationForm",
+    "conversationInput",
+    "sideTrackTopic",
+    "startSideTrackBtn",
+    "returnMainPlanningBtn",
+    "conversationTranscript",
+    "conversationInsights",
     "hardPointForm",
     "hardPointList",
     "hpTitle",
@@ -285,6 +327,12 @@ function initMap() {
 
 function bindEvents() {
   els.profileForm.addEventListener("submit", handleSaveProfile);
+  els.tripContextForm.addEventListener("submit", handleSaveTripContext);
+  els.llmItineraryForm.addEventListener("submit", handleGenerateLlmItineraryParts);
+  els.conversationForm.addEventListener("submit", handleConversationSubmit);
+  els.startSideTrackBtn.addEventListener("click", handleStartSideTrack);
+  els.returnMainPlanningBtn.addEventListener("click", handleReturnToMainPlanning);
+  els.conversationTranscript.addEventListener("click", handleConversationAction);
   els.hardPointForm.addEventListener("submit", handleAddHardPoint);
   els.hardPointList.addEventListener("click", handleHardPointAction);
   els.routeSetForm.addEventListener("submit", handleAddRouteSet);
@@ -318,6 +366,15 @@ function hydrateProfileForm() {
   els.interests.value = state.profile.interests.join(", ");
 }
 
+function hydrateTripContextForm() {
+  els.tripStartDate.value = state.tripContext.startDate || "";
+  els.tripEndDate.value = state.tripContext.endDate || "";
+  els.tripPrimaryDestination.value = state.tripContext.primaryDestination || "";
+  els.tripMustInclude.value = (state.tripContext.mustInclude || []).join(", ");
+  els.tripAvoid.value = (state.tripContext.avoid || []).join(", ");
+  els.tripStyleNotes.value = state.tripContext.styleNotes || "";
+}
+
 function hydrateLlmForm() {
   els.llmApiEndpoint.value = state.llm.endpoint || DEFAULT_LLM_CONFIG.endpoint;
   els.llmModel.value = state.llm.model || DEFAULT_LLM_CONFIG.model;
@@ -327,6 +384,9 @@ function hydrateLlmForm() {
 
 function renderAll() {
   renderMemorySummary();
+  renderTripContextSummary();
+  renderConversation();
+  renderConversationInsights();
   renderHardPoints();
   renderRouteSets();
   renderRouteNodeSetOptions();
@@ -354,6 +414,431 @@ function handleSaveProfile(event) {
   renderMemorySummary();
   renderSuggestions();
   setStatus("Traveler profile and memory preferences saved.");
+}
+
+function handleSaveTripContext(event) {
+  event.preventDefault();
+  state.tripContext = {
+    startDate: els.tripStartDate.value || "",
+    endDate: els.tripEndDate.value || "",
+    primaryDestination: els.tripPrimaryDestination.value.trim(),
+    mustInclude: parseTags(els.tripMustInclude.value),
+    avoid: parseTags(els.tripAvoid.value),
+    styleNotes: els.tripStyleNotes.value.trim(),
+  };
+  saveState();
+  renderTripContextSummary();
+  setStatus("Trip context saved for itinerary generation.");
+}
+
+function renderTripContextSummary() {
+  const hardCount = state.hardPoints.length;
+  const generatedCount = state.plannedStops.filter((stop) => stop.sourceKind === "llm-itinerary").length;
+  const windows = calculatePlanningWindows();
+  els.tripContextSummary.innerHTML = `
+    <div><strong>Trip range:</strong> ${htmlEscape(state.tripContext.startDate || "not set")} ${state.tripContext.endDate ? `to ${htmlEscape(state.tripContext.endDate)}` : ""}</div>
+    <div><strong>Primary destination:</strong> ${htmlEscape(state.tripContext.primaryDestination || "not set")}</div>
+    <div><strong>Must include:</strong> ${htmlEscape((state.tripContext.mustInclude || []).join(", ") || "none")}</div>
+    <div><strong>Avoid:</strong> ${htmlEscape((state.tripContext.avoid || []).join(", ") || "none")}</div>
+    <div><strong>Hard points:</strong> ${hardCount} | <strong>LLM-generated parts:</strong> ${generatedCount}</div>
+    <div><strong>Fill windows detected:</strong> ${windows.length}</div>
+  `;
+}
+
+function ensureConversationInitialized() {
+  if (state.conversation.messages.length) return;
+  const seedOptions = getPersonalizedSuggestions(3).map((item) => ({
+    id: generateId("conv-opt"),
+    title: item.title,
+    kind: item.type || "activity",
+    city: item.city,
+    tags: item.tags || [],
+    reason: item.description || "Starter option from your current profile.",
+    locationQuery: `${item.title}${item.city ? `, ${item.city}` : ""}`,
+    lat: item.lat,
+    lng: item.lng,
+  }));
+  pushConversationMessage(
+    "assistant",
+    "Let us plan together. Tell me what you like/dislike and I will keep learning. I can also go deep on side-tracks and then fold it back into your main trip plan.",
+    seedOptions
+  );
+}
+
+function pushConversationMessage(role, text, options = []) {
+  state.conversation.messages.push({
+    id: generateId("msg"),
+    role,
+    text,
+    when: new Date().toISOString(),
+    options: options.map((option) => ({
+      ...option,
+      id: option.id || generateId("conv-opt"),
+      tags: Array.isArray(option.tags) ? option.tags : [],
+    })),
+  });
+  state.conversation.messages = state.conversation.messages.slice(-80);
+}
+
+function renderConversation() {
+  if (!state.conversation.messages.length) {
+    els.conversationTranscript.innerHTML = "<div class='chat-message assistant'>No conversation yet.</div>";
+    return;
+  }
+  els.conversationTranscript.innerHTML = state.conversation.messages
+    .map((message) => {
+      const options = Array.isArray(message.options) ? message.options : [];
+      const optionsHtml = options.length
+        ? `<div class="results">
+            ${options.map((option) => `
+              <div class="result-card">
+                <strong>${htmlEscape(option.title)}</strong>
+                <div class="meta">${htmlEscape(option.kind || "option")} | ${htmlEscape(option.city || "city not set")}</div>
+                <div class="meta">${htmlEscape(option.reason || option.description || "")}</div>
+                <div class="chip-list">${(option.tags || []).map((tag) => `<span class="chip">${htmlEscape(tag)}</span>`).join("")}</div>
+                <div class="item-actions">
+                  <button type="button" data-action="option-feedback" data-message-id="${message.id}" data-option-id="${option.id}" data-feedback="love">Love</button>
+                  <button type="button" data-action="option-feedback" data-message-id="${message.id}" data-option-id="${option.id}" data-feedback="maybe">Maybe</button>
+                  <button type="button" data-action="option-feedback" data-message-id="${message.id}" data-option-id="${option.id}" data-feedback="no">No</button>
+                  <button type="button" data-action="option-interleave" data-message-id="${message.id}" data-option-id="${option.id}">Interleave</button>
+                  <button type="button" data-action="option-lock" data-message-id="${message.id}" data-option-id="${option.id}">Lock</button>
+                </div>
+              </div>
+            `).join("")}
+          </div>`
+        : "";
+      return `
+        <article class="chat-message ${message.role === "user" ? "user" : "assistant"}">
+          <div class="meta"><strong>${message.role === "user" ? "You" : "Planner"}</strong> | ${formatDateTime(message.when)}</div>
+          <div>${htmlEscape(message.text)}</div>
+          ${optionsHtml}
+        </article>
+      `;
+    })
+    .join("");
+  els.conversationTranscript.scrollTop = els.conversationTranscript.scrollHeight;
+}
+
+function renderConversationInsights() {
+  const likeEntries = Object.entries(state.conversation.learnedLikes || {}).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  const dislikeEntries = Object.entries(state.conversation.learnedDislikes || {}).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  const mode = state.conversation.mode || "main-planning";
+  const sideTrack = state.conversation.sideTrackTopic || "";
+  els.conversationInsights.innerHTML = `
+    <div><strong>Conversation mode:</strong> ${htmlEscape(mode)}${sideTrack ? ` (${htmlEscape(sideTrack)})` : ""}</div>
+    <div><strong>Learned likes:</strong> ${htmlEscape(likeEntries.map(([tag]) => tag).join(", ") || "none yet")}</div>
+    <div><strong>Learned dislikes:</strong> ${htmlEscape(dislikeEntries.map(([tag]) => tag).join(", ") || "none yet")}</div>
+  `;
+}
+
+async function handleConversationSubmit(event) {
+  event.preventDefault();
+  const text = els.conversationInput.value.trim();
+  if (!text) return;
+
+  pushConversationMessage("user", text);
+  els.conversationForm.reset();
+  applyDirectPreferenceFromMessage(text);
+  renderConversation();
+  renderConversationInsights();
+
+  setStatus("Planner is thinking through your preferences...");
+  try {
+    const reply = await generateConversationReply(text);
+    applyConversationInference(reply.inferredLikes || [], reply.inferredDislikes || [], "conversation-inference");
+    if (reply.mode && reply.mode !== state.conversation.mode) {
+      state.conversation.mode = reply.mode;
+    }
+    const fullMessage = [reply.assistantMessage, reply.followUpQuestion].filter(Boolean).join(" ");
+    pushConversationMessage("assistant", fullMessage || "Noted. Tell me more so I can tune your itinerary.", reply.options || []);
+    saveState();
+    renderAll();
+    setStatus("Conversation updated. Feedback on options to fine-tune memory.");
+  } catch (error) {
+    console.error(error);
+    pushConversationMessage("assistant", "I could not generate a rich response right now. Tell me one thing you love and one thing you want to avoid.");
+    saveState();
+    renderConversation();
+    setStatus(`Conversation response fallback used: ${error.message}`, true);
+  }
+}
+
+async function generateConversationReply(userText) {
+  if (state.llm.enabled && state.llm.apiKey) {
+    try {
+      return await callLlmConversationReply(userText);
+    } catch (error) {
+      console.warn("LLM conversation failed, using heuristic fallback.", error);
+    }
+  }
+  return heuristicConversationReply(userText);
+}
+
+async function callLlmConversationReply(userText) {
+  const recent = state.conversation.messages.slice(-12).map((message) => ({
+    role: message.role,
+    text: message.text,
+  }));
+  const messages = [
+    {
+      role: "system",
+      content: [
+        "You are a trip-planning copilot with memory refinement behavior.",
+        "Return ONLY valid JSON.",
+        "Ask clarifying questions if user intent is unclear.",
+        "Offer multiple options and adapt with user feedback.",
+        "Support side-track exploration and return to main planning while preserving insights.",
+        "Output JSON with keys:",
+        "assistantMessage (string), followUpQuestion (string), mode ('main-planning'|'side-track'),",
+        "options (array), inferredLikes (array of tags), inferredDislikes (array of tags).",
+        "Each option fields: title, kind, city, reason, tags (array), locationQuery (string).",
+      ].join(" "),
+    },
+    {
+      role: "user",
+      content: JSON.stringify({
+        latestUserMessage: userText,
+        conversationMode: state.conversation.mode,
+        sideTrackTopic: state.conversation.sideTrackTopic,
+        context: buildUserTripContextSnapshot(),
+        recentMessages: recent,
+        candidateOptions: getPersonalizedSuggestions(8).map((item) => ({
+          title: item.title,
+          city: item.city,
+          tags: item.tags,
+          type: item.type,
+        })),
+      }),
+    },
+  ];
+
+  const parsed = await callLlmJson(messages, 0.45);
+  const options = normalizeConversationOptions(parsed.options || []);
+  return {
+    assistantMessage: String(parsed.assistantMessage || "Thanks, I learned from that.").trim(),
+    followUpQuestion: String(parsed.followUpQuestion || "").trim(),
+    mode: parsed.mode === "side-track" ? "side-track" : "main-planning",
+    options,
+    inferredLikes: Array.isArray(parsed.inferredLikes) ? parsed.inferredLikes : [],
+    inferredDislikes: Array.isArray(parsed.inferredDislikes) ? parsed.inferredDislikes : [],
+  };
+}
+
+function heuristicConversationReply(userText) {
+  const tags = extractPreferenceTagsFromText(userText);
+  const sideTrackTopic = state.conversation.sideTrackTopic;
+  const mode = state.conversation.mode;
+  const pool = getPersonalizedSuggestions(16)
+    .filter((item) => {
+      if (mode !== "side-track" || !sideTrackTopic) return true;
+      const text = `${item.title} ${item.description} ${(item.tags || []).join(" ")}`.toLowerCase();
+      return text.includes(sideTrackTopic.toLowerCase());
+    })
+    .filter((item) => !tags.length || (item.tags || []).some((tag) => tags.includes(normalizePreferenceTag(tag))))
+    .slice(0, 4)
+    .map((item) => ({
+      title: item.title,
+      kind: item.type || "activity",
+      city: item.city,
+      reason: item.description || "Suggested from your profile and memory.",
+      tags: item.tags || [],
+      locationQuery: `${item.title}, ${item.city}`,
+      lat: item.lat,
+      lng: item.lng,
+      startHint: suggestInterleaveStart(),
+    }));
+
+  const question = mode === "side-track"
+    ? "Do you want more options in this side-track, or should we merge these insights back into the main trip?"
+    : "Which options feel closest to your taste, and what should I avoid next?";
+
+  return {
+    assistantMessage: "I used your current preferences to shortlist options. Give feedback with Love/Maybe/No so I can refine memory.",
+    followUpQuestion: question,
+    mode,
+    options: pool,
+    inferredLikes: tags,
+    inferredDislikes: [],
+  };
+}
+
+function normalizeConversationOptions(rawOptions) {
+  return rawOptions
+    .slice(0, 6)
+    .map((item) => ({
+      id: generateId("conv-opt"),
+      title: String(item.title || "").trim(),
+      kind: String(item.kind || item.type || "activity").trim().toLowerCase(),
+      city: String(item.city || "").trim(),
+      reason: String(item.reason || item.description || "").trim(),
+      tags: (Array.isArray(item.tags) ? item.tags : parseTags(item.tags || "")).map((tag) => normalizePreferenceTag(tag)),
+      locationQuery: String(item.locationQuery || `${item.title || ""}${item.city ? `, ${item.city}` : ""}`).trim(),
+      lat: Number(item.lat),
+      lng: Number(item.lng),
+      startHint: String(item.startHint || "").trim(),
+    }))
+    .filter((item) => item.title);
+}
+
+async function handleStartSideTrack() {
+  const topic = els.sideTrackTopic.value.trim();
+  if (!topic) {
+    setStatus("Enter a side-track topic first.", true);
+    return;
+  }
+  state.conversation.mode = "side-track";
+  state.conversation.sideTrackTopic = topic;
+  pushConversationMessage("assistant", `Switching to side-track mode on "${topic}". I will go deeper on this theme, then bring insights back to your main trip plan.`);
+  saveState();
+  renderConversation();
+  renderConversationInsights();
+  setStatus(`Side-track started for ${topic}.`);
+}
+
+function handleReturnToMainPlanning() {
+  const likeEntries = Object.entries(state.conversation.learnedLikes || {}).sort((a, b) => b[1] - a[1]).slice(0, 3);
+  const dislikeEntries = Object.entries(state.conversation.learnedDislikes || {}).sort((a, b) => b[1] - a[1]).slice(0, 3);
+  state.conversation.mode = "main-planning";
+  state.conversation.sideTrackTopic = "";
+
+  const summary = [
+    "Back to main planning.",
+    likeEntries.length ? `I learned you like: ${likeEntries.map(([tag]) => tag).join(", ")}.` : "I need more feedback on likes.",
+    dislikeEntries.length ? `I will avoid: ${dislikeEntries.map(([tag]) => tag).join(", ")}.` : "",
+  ].join(" ");
+  pushConversationMessage("assistant", summary);
+  saveState();
+  renderConversation();
+  renderConversationInsights();
+  setStatus("Returned to main planning with side-track insights applied.");
+}
+
+async function handleConversationAction(event) {
+  const button = event.target.closest("button[data-action]");
+  if (!button) return;
+  const action = button.dataset.action;
+  const messageId = button.dataset.messageId;
+  const optionId = button.dataset.optionId;
+  const option = getConversationOption(messageId, optionId);
+  if (!option) return;
+
+  if (action === "option-feedback") {
+    const feedback = button.dataset.feedback;
+    const delta = feedback === "love" ? 2 : feedback === "maybe" ? 1 : -2;
+    applyConversationPreference(option.tags, delta, option.title);
+    pushConversationMessage("assistant", `Noted: ${feedback} for "${option.title}". I updated your memory and will tune next suggestions.`);
+    saveState();
+    renderAll();
+    return;
+  }
+
+  try {
+    const enriched = await ensureCoordinatesForGenericItem(option);
+    if (action === "option-interleave") {
+      addPlannedStopFromSource(enriched, {
+        sourceKind: "conversation-option",
+        type: enriched.kind || "activity",
+        start: enriched.startHint || suggestInterleaveStart(),
+        notes: "Added from conversation options",
+      });
+      setStatus(`Interleaved "${enriched.title}" from conversation.`);
+      return;
+    }
+    if (action === "option-lock") {
+      pinAsHardPoint({
+        title: enriched.title,
+        type: enriched.kind || "activity",
+        city: enriched.city,
+        locationLabel: enriched.locationQuery || enriched.title,
+        lat: enriched.lat,
+        lng: enriched.lng,
+        notes: "Locked from conversation options",
+        start: enriched.startHint || suggestInterleaveStart(),
+      });
+      setStatus(`Locked "${enriched.title}" from conversation.`);
+    }
+  } catch (error) {
+    console.error(error);
+    setStatus(`Could not use conversation option: ${error.message}`, true);
+  }
+}
+
+function getConversationOption(messageId, optionId) {
+  const message = state.conversation.messages.find((entry) => entry.id === messageId);
+  if (!message || !Array.isArray(message.options)) return null;
+  return message.options.find((entry) => entry.id === optionId) || null;
+}
+
+function extractPreferenceTagsFromText(text) {
+  const lowered = String(text || "").toLowerCase();
+  const raw = DETAIL_CATEGORY_HINTS.filter((token) => lowered.includes(token));
+  return [...new Set(raw.map((token) => normalizePreferenceTag(token)))];
+}
+
+function normalizePreferenceTag(tag) {
+  const token = String(tag || "").toLowerCase().trim();
+  const map = {
+    bars: "bar",
+    concerts: "concert",
+    events: "event",
+    museums: "museum",
+    shops: "shop",
+    shopping: "shop",
+    restaurants: "restaurant",
+    hiking: "hike",
+  };
+  return map[token] || token;
+}
+
+function applyDirectPreferenceFromMessage(text) {
+  const lowered = String(text || "").toLowerCase();
+  const tags = extractPreferenceTagsFromText(lowered);
+  if (!tags.length) return;
+
+  const negativeSignals = ["don't like", "dont like", "dislike", "hate", "avoid", "not into"];
+  const positiveSignals = ["i like", "love", "enjoy", "prefer", "favorite", "favourite"];
+  if (negativeSignals.some((token) => lowered.includes(token))) {
+    applyConversationPreference(tags, -1, "direct-message");
+    return;
+  }
+  if (positiveSignals.some((token) => lowered.includes(token))) {
+    applyConversationPreference(tags, 1, "direct-message");
+  }
+}
+
+function applyConversationInference(inferredLikes, inferredDislikes, source) {
+  const likes = (Array.isArray(inferredLikes) ? inferredLikes : []).map((tag) => normalizePreferenceTag(tag));
+  const dislikes = (Array.isArray(inferredDislikes) ? inferredDislikes : []).map((tag) => normalizePreferenceTag(tag));
+  if (likes.length) applyConversationPreference(likes, 1, source);
+  if (dislikes.length) applyConversationPreference(dislikes, -1, source);
+}
+
+function applyConversationPreference(tags, delta, sourceTitle) {
+  const validTags = (Array.isArray(tags) ? tags : []).map((tag) => normalizePreferenceTag(tag)).filter(Boolean);
+  if (!validTags.length || !delta) return;
+
+  validTags.forEach((tag) => {
+    state.memory.tagScores[tag] = (state.memory.tagScores[tag] || 0) + delta;
+    if (delta > 0) {
+      state.conversation.learnedLikes[tag] = (state.conversation.learnedLikes[tag] || 0) + delta;
+    } else {
+      state.conversation.learnedDislikes[tag] = (state.conversation.learnedDislikes[tag] || 0) + Math.abs(delta);
+    }
+  });
+
+  state.memory.ratingsHistory.unshift({
+    itemId: generateId("conv-memory"),
+    title: sourceTitle || "conversation-feedback",
+    rating: delta > 0 ? 4 : 2,
+    kind: "conversation-feedback",
+    tags: validTags,
+    city: "",
+    when: new Date().toISOString(),
+  });
+  state.memory.ratingsHistory = state.memory.ratingsHistory.slice(0, 180);
+  saveState();
+  renderMemorySummary();
+  renderConversationInsights();
 }
 
 async function handleAddHardPoint(event) {
@@ -1583,6 +2068,331 @@ function handlePlaceAction(event) {
   }
 }
 
+function calculatePlanningWindows() {
+  const hard = getSortedHardPoints();
+  const minimumWindowMs = 45 * 60 * 1000;
+  let start = parseDateInput(state.tripContext.startDate);
+  let end = parseDateInput(state.tripContext.endDate, true);
+
+  if (!start) {
+    if (hard.length) {
+      start = new Date(hard[0].start);
+      start.setHours(start.getHours() - 6);
+    } else {
+      start = new Date();
+      start.setHours(start.getHours() + 2);
+    }
+  }
+
+  if (!end) {
+    if (hard.length) {
+      const last = hard[hard.length - 1];
+      end = new Date(last.end || last.start);
+      end.setHours(end.getHours() + 10);
+    } else {
+      end = new Date(start);
+      end.setDate(end.getDate() + 3);
+    }
+  }
+
+  if (end <= start) {
+    end = new Date(start);
+    end.setDate(end.getDate() + 1);
+  }
+
+  const anchors = hard.map((point) => {
+    const hpStart = new Date(point.start);
+    const hpEnd = new Date(point.end || point.start);
+    if (hpEnd <= hpStart) hpEnd.setHours(hpEnd.getHours() + 1);
+    return {
+      id: point.id,
+      title: point.title,
+      start: hpStart,
+      end: hpEnd,
+    };
+  });
+
+  const windows = [];
+  let cursor = start;
+
+  for (let i = 0; i < anchors.length; i += 1) {
+    const anchor = anchors[i];
+    if (anchor.start.getTime() - cursor.getTime() >= minimumWindowMs) {
+      windows.push({
+        id: `window-${i}`,
+        start: new Date(cursor),
+        end: new Date(anchor.start),
+        beforeHardPoint: i > 0 ? anchors[i - 1].title : "",
+        afterHardPoint: anchor.title,
+      });
+    }
+    if (anchor.end > cursor) cursor = new Date(anchor.end);
+  }
+
+  if (end.getTime() - cursor.getTime() >= minimumWindowMs) {
+    windows.push({
+      id: `window-${windows.length}`,
+      start: new Date(cursor),
+      end: new Date(end),
+      beforeHardPoint: anchors.length ? anchors[anchors.length - 1].title : "",
+      afterHardPoint: "",
+    });
+  }
+
+  return windows.map((window) => ({
+    ...window,
+    startIso: window.start.toISOString(),
+    endIso: window.end.toISOString(),
+    hours: Math.round(((window.end - window.start) / (1000 * 60 * 60)) * 10) / 10,
+  }));
+}
+
+function buildUserTripContextSnapshot() {
+  const learnedLikes = Object.entries(state.conversation.learnedLikes || {}).sort((a, b) => b[1] - a[1]).slice(0, 8);
+  const learnedDislikes = Object.entries(state.conversation.learnedDislikes || {}).sort((a, b) => b[1] - a[1]).slice(0, 8);
+  return {
+    travelerProfile: state.profile,
+    tripContext: state.tripContext,
+    hardPoints: getSortedHardPoints().map((point) => ({
+      id: point.id,
+      title: point.title,
+      type: point.type,
+      start: point.start,
+      end: point.end,
+      city: point.city,
+      notes: point.notes,
+    })),
+    activeRouteNodes: getSortedActiveRouteNodes().map((node) => ({
+      title: node.title,
+      type: node.type,
+      start: node.start,
+      city: node.city,
+      routeSet: node.routeSetName,
+    })),
+    memoryTopTags: Object.entries(state.memory.tagScores).sort((a, b) => b[1] - a[1]).slice(0, 8),
+    memoryAvoidTags: Object.entries(state.memory.tagScores).sort((a, b) => a[1] - b[1]).slice(0, 6),
+    conversationMode: state.conversation.mode,
+    sideTrackTopic: state.conversation.sideTrackTopic,
+    learnedLikes,
+    learnedDislikes,
+    recentConversation: state.conversation.messages.slice(-10).map((message) => ({
+      role: message.role,
+      text: message.text,
+    })),
+  };
+}
+
+async function handleGenerateLlmItineraryParts(event) {
+  event.preventDefault();
+  const request = els.itineraryGenerationRequest.value.trim();
+  const maxItems = Number(els.itineraryGenerationLimit.value || 10);
+  const replaceGenerated = Boolean(els.itineraryReplaceGenerated.checked);
+
+  if (!request) {
+    setStatus("Please provide itinerary generation instructions.", true);
+    return;
+  }
+  if (!state.llm.enabled || !state.llm.apiKey) {
+    setStatus("Enable and configure LLM settings first.", true);
+    return;
+  }
+
+  const windows = calculatePlanningWindows();
+  if (!windows.length) {
+    setStatus("No free windows found around hard points. Add trip dates or adjust hard points.", true);
+    return;
+  }
+
+  setStatus("Generating itinerary parts with LLM using hard-point windows...");
+  try {
+    const generated = await callLlmItineraryBuilder({
+      request,
+      maxItems,
+      windows,
+      context: buildUserTripContextSnapshot(),
+    });
+
+    const normalized = normalizeLlmItineraryParts(generated, windows, maxItems);
+    if (!normalized.length) {
+      setStatus("LLM returned no usable itinerary parts.", true);
+      return;
+    }
+
+    const preparedStops = [];
+    for (const item of normalized) {
+      try {
+        const enriched = await ensureCoordinatesForGenericItem(item);
+        preparedStops.push(createPlannedStopEntry(enriched, {
+          sourceKind: "llm-itinerary",
+          type: enriched.kind || "detail-stop",
+          start: enriched.startHint || suggestInterleaveStart(),
+          end: enriched.endHint || "",
+          notes: enriched.description || "Generated by LLM itinerary builder",
+        }));
+      } catch (error) {
+        console.warn("Skipping generated item due to location failure:", item.title, error);
+      }
+    }
+
+    if (!preparedStops.length) {
+      setStatus("Generated items could not be geocoded. Try adding clearer location hints.", true);
+      return;
+    }
+
+    if (replaceGenerated) {
+      state.plannedStops = state.plannedStops.filter((stop) => stop.sourceKind !== "llm-itinerary");
+    }
+    state.plannedStops.push(...preparedStops);
+    sortPlannedStopsInPlace();
+    saveState();
+    renderAll();
+    setStatus(`Added ${preparedStops.length} LLM-generated itinerary parts around hard points.`);
+  } catch (error) {
+    console.error(error);
+    setStatus(`LLM itinerary generation failed: ${error.message}`, true);
+  }
+}
+
+async function callLlmItineraryBuilder({ request, maxItems, windows, context }) {
+  const messages = [
+    {
+      role: "system",
+      content: [
+        "You are an itinerary construction assistant.",
+        "Return ONLY valid JSON.",
+        "You must respect fixed hard points by planning only inside provided free windows.",
+        "Output JSON object with key 'parts' that is an array.",
+        "Each part fields:",
+        "title (string), kind (string), city (string), start (ISO datetime), end (ISO datetime optional),",
+        "locationQuery (string), tags (array of strings), notes (string), windowId (string).",
+        "Do not place items outside windows.",
+      ].join(" "),
+    },
+    {
+      role: "user",
+      content: JSON.stringify({
+        request,
+        maxItems: Math.min(30, Math.max(1, maxItems)),
+        windows: windows.map((window) => ({
+          id: window.id,
+          start: window.startIso,
+          end: window.endIso,
+          hours: window.hours,
+          beforeHardPoint: window.beforeHardPoint,
+          afterHardPoint: window.afterHardPoint,
+        })),
+        context,
+      }),
+    },
+  ];
+
+  const parsed = await callLlmJson(messages, 0.25);
+  if (Array.isArray(parsed)) return parsed;
+  if (Array.isArray(parsed.parts)) return parsed.parts;
+  if (Array.isArray(parsed.results)) return parsed.results;
+  if (Array.isArray(parsed.items)) return parsed.items;
+  return [];
+}
+
+function normalizeLlmItineraryParts(rawItems, windows, maxItems) {
+  const max = Math.min(30, Math.max(1, maxItems));
+  return rawItems
+    .slice(0, max)
+    .map((item) => {
+      const title = String(item.title || "").trim();
+      if (!title) return null;
+      const kind = String(item.kind || "detail-stop").trim().toLowerCase();
+      const city = String(item.city || state.tripContext.primaryDestination || "").trim();
+      const tags = Array.isArray(item.tags) ? item.tags.map((tag) => String(tag).trim().toLowerCase()).filter(Boolean) : parseTags(item.tags || kind);
+      const window = resolveWindowForGeneratedItem(item, windows);
+      if (!window) return null;
+      const startDate = parseDateInput(item.start) || parseDateInput(item.startHint) || new Date(window.startIso);
+      const endDate = parseDateInput(item.end) || parseDateInput(item.endHint) || new Date(startDate.getTime() + 90 * 60 * 1000);
+      const clampedStart = clampDateToWindow(startDate, window.start, window.end);
+      const clampedEnd = clampDateToWindow(endDate > clampedStart ? endDate : new Date(clampedStart.getTime() + 60 * 60 * 1000), clampedStart, window.end);
+
+      return {
+        id: generateId("llm-part"),
+        title,
+        kind,
+        city,
+        startHint: clampedStart.toISOString(),
+        endHint: clampedEnd.toISOString(),
+        locationQuery: String(item.locationQuery || `${title}${city ? `, ${city}` : ""}`).trim(),
+        tags: tags.length ? tags : [kind],
+        description: String(item.notes || item.reason || "Generated from user + trip context").trim(),
+        lat: Number(item.lat),
+        lng: Number(item.lng),
+      };
+    })
+    .filter(Boolean);
+}
+
+function resolveWindowForGeneratedItem(item, windows) {
+  const windowId = String(item.windowId || "").trim();
+  if (windowId) {
+    const direct = windows.find((window) => window.id === windowId);
+    if (direct) return direct;
+  }
+  const start = parseDateInput(item.start) || parseDateInput(item.startHint);
+  if (start) {
+    const byDate = windows.find((window) => start >= window.start && start <= window.end);
+    if (byDate) return byDate;
+  }
+  return windows[0] || null;
+}
+
+function clampDateToWindow(value, minDate, maxDate) {
+  const date = new Date(value);
+  if (date < minDate) return new Date(minDate);
+  if (date > maxDate) return new Date(maxDate);
+  return date;
+}
+
+async function callLlmJson(messages, temperature = 0.2) {
+  const payload = {
+    model: state.llm.model,
+    temperature,
+    messages,
+  };
+
+  const response = await fetch(state.llm.endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${state.llm.apiKey}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(`LLM provider returned ${response.status}: ${details.slice(0, 240)}`);
+  }
+
+  const responseJson = await response.json();
+  const rawContent = responseJson.choices?.[0]?.message?.content;
+  const content = Array.isArray(rawContent)
+    ? rawContent.map((part) => (typeof part === "string" ? part : part?.text || "")).join("\n")
+    : String(rawContent || "");
+
+  if (!content.trim()) {
+    throw new Error("LLM provider returned an empty answer.");
+  }
+
+  return parseJsonFromLlmText(content);
+}
+
+function parseDateInput(value, endOfDay = false) {
+  if (!value) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  if (endOfDay && String(value).length <= 10) {
+    parsed.setHours(23, 59, 59, 999);
+  }
+  return parsed;
+}
+
 function handleSaveLlmConfig(event) {
   event.preventDefault();
   state.llm = {
@@ -1662,8 +2472,14 @@ async function callLlmSearch({ query, location, date, resultCount }) {
           targetDate: date || null,
           maxResults: Math.min(20, Math.max(1, resultCount)),
           travelerProfile: state.profile,
+          tripContext: state.tripContext,
           memoryTopTags: Object.entries(state.memory.tagScores).sort((a, b) => b[1] - a[1]).slice(0, 8),
           hardPoints: hardPointContext,
+          fillWindows: calculatePlanningWindows().map((window) => ({
+            start: window.startIso,
+            end: window.endIso,
+            hours: window.hours,
+          })),
           existingRecentPlaceResults: state.lastPlaces.slice(0, 15),
           existingRecentEventResults: state.lastEvents.slice(0, 15),
         }),
@@ -2309,14 +3125,14 @@ function suggestInterleaveStart() {
   return next.toISOString().slice(0, 16);
 }
 
-function addPlannedStopFromSource(source, { sourceKind, type, start, notes }) {
-  const plannedStop = {
+function createPlannedStopEntry(source, { sourceKind, type, start, end, notes }) {
+  return {
     id: generateId("plan"),
     title: source.title,
     type: type || source.category || source.kind || "stop",
     sourceKind: sourceKind || source.kind || "interleave",
     start: start || suggestInterleaveStart(),
-    end: "",
+    end: end || "",
     city: source.city || "",
     locationLabel: source.venue || source.title || source.city || "",
     lat: Number.isFinite(source.lat) ? source.lat : 0,
@@ -2325,6 +3141,16 @@ function addPlannedStopFromSource(source, { sourceKind, type, start, notes }) {
     notes: notes || "",
     createdAt: new Date().toISOString(),
   };
+}
+
+function addPlannedStopFromSource(source, { sourceKind, type, start, end, notes }) {
+  const plannedStop = createPlannedStopEntry(source, {
+    sourceKind,
+    type,
+    start,
+    end,
+    notes,
+  });
   state.plannedStops.push(plannedStop);
   sortPlannedStopsInPlace();
   saveState();
@@ -2391,6 +3217,16 @@ function setDefaultEventDate() {
     routeNodeStart.setHours(routeNodeStart.getHours() + 5);
     els.routeNodeStart.value = routeNodeStart.toISOString().slice(0, 16);
   }
+  if (!els.tripStartDate.value) {
+    const tripStart = new Date();
+    tripStart.setDate(tripStart.getDate() + 1);
+    els.tripStartDate.value = tripStart.toISOString().slice(0, 10);
+  }
+  if (!els.tripEndDate.value) {
+    const tripEnd = new Date();
+    tripEnd.setDate(tripEnd.getDate() + 5);
+    els.tripEndDate.value = tripEnd.toISOString().slice(0, 10);
+  }
 }
 
 function init() {
@@ -2398,8 +3234,10 @@ function init() {
   initMap();
   bindEvents();
   hydrateProfileForm();
+  hydrateTripContextForm();
   hydrateLlmForm();
   setDefaultEventDate();
+  ensureConversationInitialized();
   renderAll();
   setStatus("MindTrip planner ready. Add hard points to begin.");
 }

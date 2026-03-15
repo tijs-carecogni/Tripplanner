@@ -55,6 +55,74 @@
       </section>
 
       <section class="card">
+        <h2>User + Trip Context</h2>
+        <p class="hint">Define your trip context so LLM can fill itinerary parts around hard points.</p>
+        <form id="tripContextForm" class="stack">
+          <label>
+            Trip start
+            <input id="tripStartDate" type="date">
+          </label>
+          <label>
+            Trip end
+            <input id="tripEndDate" type="date">
+          </label>
+          <label>
+            Primary destination / area
+            <input id="tripPrimaryDestination" type="text" placeholder="Japan: Tokyo, Kyoto, Osaka">
+          </label>
+          <label>
+            Must include (comma separated)
+            <input id="tripMustInclude" type="text" placeholder="onsen, sushi class, architecture walk">
+          </label>
+          <label>
+            Avoid (comma separated)
+            <input id="tripAvoid" type="text" placeholder="nightclubs, long hikes">
+          </label>
+          <label>
+            Extra style notes
+            <textarea id="tripStyleNotes" rows="2" placeholder="Prefer 2 big experiences per day and a relaxed evening"></textarea>
+          </label>
+          <button type="submit">Save trip context</button>
+        </form>
+
+        <form id="llmItineraryForm" class="stack">
+          <label>
+            Ask LLM to fill itinerary
+            <textarea id="itineraryGenerationRequest" rows="2" placeholder="Fill mornings with culture and afternoons with food, keeping evenings flexible." required></textarea>
+          </label>
+          <label>
+            Max items to generate
+            <input id="itineraryGenerationLimit" type="number" min="1" max="30" value="10">
+          </label>
+          <label class="checkbox-inline">
+            <input id="itineraryReplaceGenerated" type="checkbox" checked>
+            Replace previously LLM-generated itinerary parts
+          </label>
+          <button type="submit">Generate itinerary parts (hard-points aware)</button>
+        </form>
+        <div id="tripContextSummary" class="memory-summary"></div>
+      </section>
+
+      <section class="card">
+        <h2>Conversation Copilot</h2>
+        <p class="hint">Long conversation to clarify preferences, explore side-tracks, and tune memory.</p>
+        <form id="conversationForm" class="stack">
+          <label>
+            Message
+            <textarea id="conversationInput" rows="2" placeholder="I like architecture but not too many museums in one day." required></textarea>
+          </label>
+          <button type="submit">Send to planner</button>
+        </form>
+        <div class="stack inline-two">
+          <input id="sideTrackTopic" type="text" placeholder="Side-track topic (e.g. craft coffee, live jazz)">
+          <button id="startSideTrackBtn" type="button">Go on side-track</button>
+          <button id="returnMainPlanningBtn" type="button">Back to main trip planning</button>
+        </div>
+        <div id="conversationTranscript" class="conversation"></div>
+        <div id="conversationInsights" class="memory-summary"></div>
+      </section>
+
+      <section class="card">
         <h2>Hard Points (locked)</h2>
         <p class="hint">Flights, booked hotels, tickets, or fixed commitments.</p>
         <form id="hardPointForm" class="stack">

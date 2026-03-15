@@ -11,6 +11,8 @@ A lightweight MindTrip-like travel planner focused on:
 - **Event discovery**
 - **Interleaving flexible stops between hard points**
 - **LLM-based natural-language search**
+- **Context-driven LLM itinerary builder** (fills windows around hard points)
+- **Conversational preference loop** (clarify, suggest options, collect feedback, refine memory)
 - **Route comparison** (driving/cycling/walking, including alternatives where available)
 
 ## Features
@@ -63,7 +65,20 @@ A lightweight MindTrip-like travel planner focused on:
   - locked as hard points, or
   - rated for memory learning.
 
-### 8) Route Comparison (Google Maps-style concept)
+### 8) User + Trip Context Driven Itinerary Generation
+- Save explicit trip context (trip range, destination, must-include, avoid, style notes).
+- Planner computes **free windows around hard points**.
+- LLM can generate itinerary parts specifically for those windows while preserving hard-point constraints.
+- Generated items are inserted as flexible itinerary stops and can replace prior generated parts.
+
+### 9) Conversational Copilot (Long-form preference discovery)
+- Multi-turn conversation to clarify ambiguous user preferences.
+- Suggests multiple options in each turn and captures feedback (`Love / Maybe / No`).
+- Feedback updates user memory (likes/dislikes tags) and fine-tunes future suggestions.
+- Supports **side-track mode** for deep dives into activities, then returning to **main planning** while carrying learned signals.
+- Conversation insights are included in the itinerary generation context.
+
+### 10) Route Comparison (Google Maps-style concept)
 - Compare multiple route profiles: driving, cycling, walking.
 - Support:
   - point-to-point hard point comparison
