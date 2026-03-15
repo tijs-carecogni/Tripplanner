@@ -879,6 +879,11 @@ button:active {
     display: flex;
   }
 
+  body[data-mobile-view="plan"] .sidebar,
+  body[data-mobile-view="controls"] .workspace {
+    display: flex;
+  }
+
   .workspace > .card {
     padding: 1.05rem;
   }
