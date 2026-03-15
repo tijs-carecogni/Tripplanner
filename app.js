@@ -33,6 +33,7 @@ let state = loadState();
 const interactionController = createHighlightController();
 const SIDEBAR_COLLAPSE_STORAGE_KEY = "mindtrip_sidebar_collapse_v1";
 const MOBILE_VIEW_STORAGE_KEY = "mindtrip_mobile_view_v1";
+const segmentRouteGeometryCache = new Map();
 
 function createDefaultState() {
   return {
@@ -3776,7 +3777,12 @@ function renderRouteStripVisual() {
     const type = getSegmentTransportType(point, next);
     const meta = getTransportMeta(type);
     const km = haversineKm(point.lat, point.lng, next.lat, next.lng);
-    parts.push(`<span class="route-segment-chip segment-${meta.css}" data-segment-key="${htmlEscape(buildSegmentKey(point.id, next.id))}">${meta.icon} ${km.toFixed(0)}km</span>`);
+    parts.push(`
+      <span class="route-segment-chip segment-${meta.css}" data-segment-key="${htmlEscape(buildSegmentKey(point.id, next.id))}">
+        ${iconSvg(meta.iconName, "chip-icon")}
+        <span>${km.toFixed(0)}km</span>
+      </span>
+    `);
   });
   els.routeStripVisual.innerHTML = parts.join("");
 }
@@ -3946,28 +3952,28 @@ function getTripSpanDays() {
 function renderMapLegend() {
   const showRecommendations = state.expertSettings?.showRecommendationLayer !== false;
   els.mapLegend.innerHTML = `
-    <span class="legend-chip">✈️ flight leg</span>
-    <span class="legend-chip">🚆 rail leg</span>
-    <span class="legend-chip">🚗 road leg</span>
-    <span class="legend-chip">🚶 short hop</span>
-    <span class="legend-chip">📍 hard point</span>
-    ${showRecommendations ? "<span class='legend-chip'>● recommendation</span>" : ""}
-    <span class="legend-chip">⏺ click item to pin highlight</span>
+    <span class="legend-chip">${iconSvg("flight", "legend-icon")} flight leg</span>
+    <span class="legend-chip">${iconSvg("train", "legend-icon")} rail leg</span>
+    <span class="legend-chip">${iconSvg("drive", "legend-icon")} road leg</span>
+    <span class="legend-chip">${iconSvg("walk", "legend-icon")} short hop</span>
+    <span class="legend-chip">${iconSvg("pin", "legend-icon")} hard point</span>
+    ${showRecommendations ? `<span class='legend-chip'>${iconSvg("spark", "legend-icon")} recommendation</span>` : ""}
+    <span class="legend-chip">${iconSvg("pin", "legend-icon")} click item to pin highlight</span>
   `;
 }
 
 function createStopMarkerIcon(type) {
   const token = String(type || "").toLowerCase();
-  let icon = "📍";
-  if (token.includes("flight")) icon = "✈️";
-  else if (token.includes("train")) icon = "🚆";
-  else if (token.includes("hotel")) icon = "🏨";
-  else if (token.includes("tour")) icon = "🎟️";
-  else if (token.includes("meeting")) icon = "📌";
-  else if (token.includes("no-planning")) icon = "🌙";
+  let iconName = "pin";
+  if (token.includes("flight")) iconName = "flight";
+  else if (token.includes("train")) iconName = "train";
+  else if (token.includes("hotel")) iconName = "bed";
+  else if (token.includes("tour")) iconName = "ticket";
+  else if (token.includes("meeting")) iconName = "briefcase";
+  else if (token.includes("no-planning")) iconName = "moon";
   return L.divIcon({
     className: "",
-    html: `<span class="stop-marker">${icon}</span>`,
+    html: `<span class="stop-marker stop-${iconName}">${iconSvg(iconName, "map-icon")}</span>`,
     iconSize: [30, 30],
     iconAnchor: [15, 15],
   });
@@ -3990,10 +3996,58 @@ function getSegmentTransportType(from, to) {
 }
 
 function getTransportMeta(type) {
-  if (type === "flight") return { icon: "✈️", label: "Flight leg", color: "#d14b88", weight: 3.5, dashArray: "2,8", css: "flight" };
-  if (type === "train") return { icon: "🚆", label: "Rail leg", color: "#4f63d8", weight: 3.5, dashArray: "8,8", css: "train" };
-  if (type === "drive") return { icon: "🚗", label: "Road leg", color: "#2d8e4a", weight: 3, dashArray: "", css: "drive" };
-  return { icon: "🚶", label: "Short hop", color: "#7a55ba", weight: 2.8, dashArray: "4,6", css: "walk" };
+  if (type === "flight") return { iconName: "flight", label: "Flight leg", color: "#d14b88", weight: 3.5, dashArray: "2,8", css: "flight", routeProfile: null };
+  if (type === "train") return { iconName: "train", label: "Rail leg", color: "#4f63d8", weight: 3.5, dashArray: "8,8", css: "train", routeProfile: "driving" };
+  if (type === "drive") return { iconName: "drive", label: "Road leg", color: "#2d8e4a", weight: 3, dashArray: "", css: "drive", routeProfile: "driving" };
+  return { iconName: "walk", label: "Short hop", color: "#7a55ba", weight: 2.8, dashArray: "4,6", css: "walk", routeProfile: "walking" };
+}
+
+function iconSvg(name, className = "icon-inline") {
+  const cls = htmlEscape(className);
+  const base = {
+    flight: `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 13l20-8-8 20-3-8-9-4z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>`,
+    train: `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="3" width="12" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M9 7h2M13 7h2M8 20l2-3M16 20l-2-3M8 14h8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`,
+    drive: `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 13h14l-1.5-4H6.5L5 13z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><rect x="3.5" y="13" width="17" height="5.5" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="7.5" cy="18.5" r="1" fill="currentColor"/><circle cx="16.5" cy="18.5" r="1" fill="currentColor"/></svg>`,
+    walk: `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 7.5l-2 4 2.2 2.1-1.4 5.4M12 11l3.5 2.2M10 12.2l-3.2 1.8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    pin: `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s6-6 6-11a6 6 0 1 0-12 0c0 5 6 11 6 11z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="10" r="2" fill="currentColor"/></svg>`,
+    bed: `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19v-8h16v8M4 15h16M7 11V8h3a2 2 0 0 1 2 2v1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    ticket: `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h16v3a2 2 0 0 0 0 2v3H4v-3a2 2 0 0 0 0-2V8z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 8v8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-dasharray="1.8 1.8"/></svg>`,
+    briefcase: `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="7" width="16" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M9 7V5h6v2M4 12h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`,
+    moon: `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 3a8.5 8.5 0 1 0 6 14.5A9 9 0 0 1 15 3z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>`,
+    spark: `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.2 5.3L20 10l-5.8 1.7L12 17l-2.2-5.3L4 10l5.8-1.7L12 3z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>`,
+  };
+  return base[name] || base.pin;
+}
+
+function buildRouteCacheKey(from, to, profile) {
+  const toToken = (value) => Number(value).toFixed(4);
+  return `${profile}:${toToken(from.lat)},${toToken(from.lng)}:${toToken(to.lat)},${toToken(to.lng)}`;
+}
+
+async function fetchSegmentRouteGeometry(from, to, transportType) {
+  const meta = getTransportMeta(transportType);
+  const profile = meta.routeProfile;
+  if (!profile) return null;
+  if (!Number.isFinite(from.lat) || !Number.isFinite(from.lng) || !Number.isFinite(to.lat) || !Number.isFinite(to.lng)) return null;
+  const cacheKey = buildRouteCacheKey(from, to, profile);
+  if (segmentRouteGeometryCache.has(cacheKey)) {
+    const cached = segmentRouteGeometryCache.get(cacheKey);
+    if (cached && typeof cached.then === "function") return cached;
+    return cached;
+  }
+  const request = (async () => {
+    try {
+      const coords = [[from.lat, from.lng], [to.lat, to.lng]];
+      const route = await fetchRoute(profile, coords, false);
+      return Array.isArray(route.geometry) && route.geometry.length >= 2 ? route.geometry : null;
+    } catch {
+      return null;
+    }
+  })();
+  segmentRouteGeometryCache.set(cacheKey, request);
+  const resolved = await request;
+  segmentRouteGeometryCache.set(cacheKey, resolved);
+  return resolved;
 }
 
 function createArcCoordinates(from, to, curveFactor = 0.2, points = 24) {
@@ -4153,6 +4207,7 @@ function renderMap() {
       const to = timelinePoints[i + 1];
       const transportType = getSegmentTransportType(from, to);
       const transport = getTransportMeta(transportType);
+      const segmentKey = buildSegmentKey(from.id, to.id);
       const segmentCoords = transportType === "flight"
         ? createArcCoordinates([from.lat, from.lng], [to.lat, to.lng], 0.2)
         : [[from.lat, from.lng], [to.lat, to.lng]];
@@ -4161,11 +4216,11 @@ function renderMap() {
         weight: transport.weight,
         opacity: 0.86,
         dashArray: transport.dashArray,
-      }).bindPopup(`${transport.icon} ${transport.label}: ${htmlEscape(from.title)} -> ${htmlEscape(to.title)}`);
+      }).bindPopup(`${transport.label}: ${htmlEscape(from.title)} -> ${htmlEscape(to.title)}`);
       line.addTo(layers.itineraryPath);
       registerMapLayer(line, {
         entityKeys: [from.id, to.id],
-        segmentKeys: [buildSegmentKey(from.id, to.id)],
+        segmentKeys: [segmentKey],
         linkKeys: [buildEntityLinkKey(from), buildEntityLinkKey(to)],
         baseStyle: {
           color: transport.color,
@@ -4178,18 +4233,30 @@ function renderMap() {
       pushMapElement(line, true);
 
       const mid = getPolylineMidpoint(segmentCoords);
+      let transportMarker = null;
       if (mid) {
-        const marker = L.marker(mid, {
+        transportMarker = L.marker(mid, {
           icon: L.divIcon({
             className: "",
-            html: `<span class="transport-marker">${transport.icon}</span>`,
+            html: `<span class="transport-marker transport-${transport.css}">${iconSvg(transport.iconName, "map-icon")}</span>`,
             iconSize: [26, 26],
             iconAnchor: [13, 13],
           }),
           interactive: false,
         });
-        marker.addTo(layers.itineraryPath);
-        pushMapElement(marker, true);
+        transportMarker.addTo(layers.itineraryPath);
+        pushMapElement(transportMarker, true);
+      }
+
+      if (transportType !== "flight") {
+        void fetchSegmentRouteGeometry(from, to, transportType).then((actualCoords) => {
+          if (!actualCoords || actualCoords.length < 2 || !line._map) return;
+          line.setLatLngs(actualCoords);
+          const actualMid = getPolylineMidpoint(actualCoords);
+          if (actualMid && transportMarker && transportMarker._map) {
+            transportMarker.setLatLng(actualMid);
+          }
+        });
       }
     }
   } else if (sorted.length >= 2) {

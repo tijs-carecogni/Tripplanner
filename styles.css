@@ -609,11 +609,23 @@ button:active {
 }
 
 .route-segment-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.24rem;
   border-radius: 999px;
   padding: 0.21rem 0.5rem;
   font-size: 0.73rem;
   border: 1px solid;
   box-shadow: 0 2px 5px rgba(15, 23, 42, 0.06);
+}
+
+.chip-icon,
+.legend-icon,
+.icon-inline {
+  width: 12px;
+  height: 12px;
+  display: inline-block;
+  vertical-align: -2px;
 }
 
 .segment-flight { background: #faf5f7; border-color: #e2c8d4; color: #7e465f; }
@@ -764,6 +776,9 @@ button:active {
 }
 
 .legend-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
   border-radius: 999px;
   border: 1px solid #dbe2ea;
   background: #f8fafc;
@@ -771,6 +786,12 @@ button:active {
   font-size: 0.72rem;
   color: #475569;
   box-shadow: 0 2px 5px rgba(15, 23, 42, 0.06);
+}
+
+.map-icon {
+  width: 14px;
+  height: 14px;
+  display: block;
 }
 
 .transport-marker {
@@ -783,8 +804,12 @@ button:active {
   background: #ffffff;
   border: 1px solid #d0d9e3;
   box-shadow: 0 2px 6px rgba(15, 23, 42, 0.2);
-  font-size: 14px;
 }
+
+.transport-marker.transport-flight { color: #7e465f; }
+.transport-marker.transport-train { color: #4c5a7a; }
+.transport-marker.transport-drive { color: #48634c; }
+.transport-marker.transport-walk { color: #5a4f74; }
 
 .stop-marker {
   width: 30px;
@@ -796,8 +821,14 @@ button:active {
   background: #ffffff;
   border: 1px solid #cfd8e2;
   box-shadow: 0 2px 6px rgba(15, 23, 42, 0.2);
-  font-size: 15px;
 }
+
+.stop-marker.stop-flight { color: #7e465f; }
+.stop-marker.stop-train { color: #4c5a7a; }
+.stop-marker.stop-bed { color: #4f6077; }
+.stop-marker.stop-ticket { color: #6d5577; }
+.stop-marker.stop-briefcase { color: #425066; }
+.stop-marker.stop-moon { color: #5d5d76; }
 
 .leaflet-marker-icon.map-highlight-active .stop-marker,
 .leaflet-marker-icon.map-highlight-active .transport-marker {
