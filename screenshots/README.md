@@ -12,6 +12,12 @@ Use:
 
 It loads `bootstrap-demo.html` (demo state), captures a full screenshot, and refreshes hero crops.
 
+For mobile-first checks:
+
+```bash
+./scripts/capture_mobile_screenshots.sh
+```
+
 ## Hero set
 
 - `10-demo-full.png` – full app with populated demo state
@@ -19,6 +25,12 @@ It loads `bootstrap-demo.html` (demo state), captures a full screenshot, and ref
 - `12-hero-map-panel.png` – map + legend + itinerary top
 - `13-hero-itinerary.png` – itinerary detail focus
 - `14-hero-controls-chat.png` – controls and copilot sidebar
+
+## Mobile set
+
+- `20-mobile-full.png` – full mobile-layout screenshot
+- `21-mobile-visual-board.png` – visual board in mobile layout
+- `22-mobile-map-itinerary.png` – map and itinerary in mobile layout
 
 ## First-pass captures
 

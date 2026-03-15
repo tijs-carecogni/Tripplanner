@@ -8,6 +8,7 @@ A lightweight MindTrip-like travel planner focused on:
 - **Personalized suggestions** (and custom ideas you can add/rate)
 - **Map + itinerary visualization**
 - **Visual journey board** (phase tracker, route strip, activity mix, trip pulse)
+- **Mobile-first layout** (workspace-first flow on small screens, desktop expansion on larger screens)
 - **Main location + trip discovery**
 - **Event discovery**
 - **Interleaving flexible stops between hard points**
@@ -127,6 +128,7 @@ Then open:
 - `src/utils.js` - shared utility helpers (IDs, tags, date/time, distance, formatting)
 - `src/interaction.js` - shared interaction primitives (entity-link keys + cross-component highlight controller)
 - `scripts/capture_demo_screenshots.sh` - regenerates demo-filled hero screenshots for UI iteration
+- `scripts/capture_mobile_screenshots.sh` - captures mobile-first screenshot set for visual QA
 - `screenshots/bootstrap-demo.html` - localStorage bootstrap page used by screenshot workflow
 
 ## Notes
@@ -135,3 +137,4 @@ Then open:
 - LLM API key is stored in browser localStorage for convenience in this MVP.
 - External map/routing/geocoding data depends on availability of public services.
 - UI iteration screenshots can be refreshed with `./scripts/capture_demo_screenshots.sh`.
+- Mobile-first iteration screenshots can be refreshed with `./scripts/capture_mobile_screenshots.sh`.
