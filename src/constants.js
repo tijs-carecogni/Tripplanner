@@ -9,8 +9,11 @@ export const ROUTE_COLORS = {
 };
 
 export const DEFAULT_LLM_CONFIG = {
+  provider: "openai-compatible",
   endpoint: "https://openrouter.ai/api/v1/chat/completions",
-  model: "openai/gpt-4o-mini",
+  model: "openai/gpt-5-mini",
+  deployment: "",
+  apiVersion: "2025-01-01-preview",
   apiKey: "",
   enabled: false,
 };

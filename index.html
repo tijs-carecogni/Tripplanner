@@ -287,16 +287,31 @@
         <p class="hint">Use natural language to discover interleavable locations, events, and trips.</p>
         <form id="llmConfigForm" class="stack">
           <label>
-            API Endpoint (OpenAI-compatible)
-            <input id="llmApiEndpoint" type="url" placeholder="https://openrouter.ai/api/v1/chat/completions">
+            Provider
+            <select id="llmProvider">
+              <option value="openai-compatible" selected>OpenAI-compatible</option>
+              <option value="azure-openai">Azure OpenAI</option>
+            </select>
           </label>
           <label>
-            Model
-            <input id="llmModel" type="text" placeholder="openai/gpt-4o-mini">
+            API Endpoint
+            <input id="llmApiEndpoint" type="url" placeholder="https://openrouter.ai/api/v1/chat/completions or https://<resource>.openai.azure.com/">
+          </label>
+          <label>
+            Model / Deployment fallback
+            <input id="llmModel" type="text" placeholder="openai/gpt-5-mini">
+          </label>
+          <label>
+            Azure Deployment (only for Azure provider)
+            <input id="llmDeployment" type="text" placeholder="mini-nano-5-2-chat">
+          </label>
+          <label>
+            Azure API Version (only for Azure provider)
+            <input id="llmApiVersion" type="text" placeholder="2025-01-01-preview">
           </label>
           <label>
             API Key
-            <input id="llmApiKey" type="password" placeholder="sk-...">
+            <input id="llmApiKey" type="password" placeholder="provider key">
           </label>
           <label class="checkbox-inline">
             <input id="llmEnabled" type="checkbox">

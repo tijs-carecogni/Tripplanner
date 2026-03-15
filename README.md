@@ -58,7 +58,9 @@ A lightweight MindTrip-like travel planner focused on:
 - Add events either as interleaved stops or locked hard points.
 
 ### 7) LLM-based Search
-- Configure any OpenAI-compatible endpoint + model + API key.
+- Configure either:
+  - OpenAI-compatible endpoint + model + API key, or
+  - Azure OpenAI endpoint + deployment + API version + API key.
 - Ask natural language queries (e.g. "interleave food spots and evening music between my hard points").
 - LLM returns mixed suggestions (`main-location`, `event`, `trip`) that can be:
   - interleaved in itinerary,

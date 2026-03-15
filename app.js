@@ -195,8 +195,11 @@ function bindElements() {
     "placeInterleaveTime",
     "placeResults",
     "llmConfigForm",
+    "llmProvider",
     "llmApiEndpoint",
     "llmModel",
+    "llmDeployment",
+    "llmApiVersion",
     "llmApiKey",
     "llmEnabled",
     "llmSearchForm",
@@ -295,8 +298,11 @@ function hydrateTripContextForm() {
 }
 
 function hydrateLlmForm() {
+  els.llmProvider.value = state.llm.provider || DEFAULT_LLM_CONFIG.provider;
   els.llmApiEndpoint.value = state.llm.endpoint || DEFAULT_LLM_CONFIG.endpoint;
   els.llmModel.value = state.llm.model || DEFAULT_LLM_CONFIG.model;
+  els.llmDeployment.value = state.llm.deployment || DEFAULT_LLM_CONFIG.deployment;
+  els.llmApiVersion.value = state.llm.apiVersion || DEFAULT_LLM_CONFIG.apiVersion;
   els.llmApiKey.value = state.llm.apiKey || "";
   els.llmEnabled.checked = Boolean(state.llm.enabled && state.llm.apiKey);
 }
@@ -2269,19 +2275,11 @@ function clampDateToWindow(value, minDate, maxDate) {
 }
 
 async function callLlmJson(messages, temperature = 0.2) {
-  const payload = {
-    model: state.llm.model,
-    temperature,
-    messages,
-  };
-
-  const response = await fetch(state.llm.endpoint, {
+  const requestConfig = buildLlmRequestConfig(messages, temperature);
+  const response = await fetch(requestConfig.url, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${state.llm.apiKey}`,
-    },
-    body: JSON.stringify(payload),
+    headers: requestConfig.headers,
+    body: JSON.stringify(requestConfig.payload),
   });
 
   if (!response.ok) {
@@ -2302,11 +2300,73 @@ async function callLlmJson(messages, temperature = 0.2) {
   return parseJsonFromLlmText(content);
 }
 
+function buildLlmRequestConfig(messages, temperature) {
+  const provider = state.llm.provider || DEFAULT_LLM_CONFIG.provider;
+  const endpoint = String(state.llm.endpoint || "").trim();
+
+  if (!endpoint) {
+    throw new Error("LLM endpoint is missing.");
+  }
+
+  if (provider === "azure-openai") {
+    const deployment = String(state.llm.deployment || state.llm.model || "").trim();
+    if (!deployment) {
+      throw new Error("Azure deployment name is required.");
+    }
+    const apiVersion = String(state.llm.apiVersion || DEFAULT_LLM_CONFIG.apiVersion).trim();
+    const url = buildAzureChatCompletionsUrl(endpoint, deployment, apiVersion);
+    return {
+      url,
+      headers: {
+        "Content-Type": "application/json",
+        "api-key": state.llm.apiKey,
+      },
+      payload: {
+        temperature,
+        messages,
+      },
+    };
+  }
+
+  return {
+    url: endpoint,
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${state.llm.apiKey}`,
+    },
+    payload: {
+      model: state.llm.model,
+      temperature,
+      messages,
+    },
+  };
+}
+
+function buildAzureChatCompletionsUrl(endpoint, deployment, apiVersion) {
+  const trimmed = endpoint.replace(/\/+$/, "");
+  const hasDeploymentPath = /\/openai\/deployments\//i.test(trimmed);
+  const base = hasDeploymentPath
+    ? trimmed
+    : `${trimmed}/openai/deployments/${encodeURIComponent(deployment)}/chat/completions`;
+  return appendQueryParam(base, "api-version", apiVersion);
+}
+
+function appendQueryParam(url, key, value) {
+  if (!value) return url;
+  const hasQuery = url.includes("?");
+  const separator = hasQuery ? "&" : "?";
+  const existing = new RegExp(`(?:\\?|&)${key}=`, "i").test(url);
+  return existing ? url : `${url}${separator}${encodeURIComponent(key)}=${encodeURIComponent(value)}`;
+}
+
 function handleSaveLlmConfig(event) {
   event.preventDefault();
   state.llm = {
+    provider: els.llmProvider.value || DEFAULT_LLM_CONFIG.provider,
     endpoint: (els.llmApiEndpoint.value || DEFAULT_LLM_CONFIG.endpoint).trim(),
     model: (els.llmModel.value || DEFAULT_LLM_CONFIG.model).trim(),
+    deployment: (els.llmDeployment.value || "").trim(),
+    apiVersion: (els.llmApiVersion.value || DEFAULT_LLM_CONFIG.apiVersion).trim(),
     apiKey: els.llmApiKey.value.trim(),
     enabled: Boolean(els.llmEnabled.checked),
   };
@@ -2356,73 +2416,43 @@ async function callLlmSearch({ query, location, date, resultCount }) {
     type: point.type,
   }));
 
-  const payload = {
-    model: state.llm.model,
-    temperature: 0.2,
-    messages: [
-      {
-        role: "system",
-        content: [
-          "You are a trip planning assistant.",
-          "Return ONLY valid JSON.",
-          "Generate recommendations for main locations, events, and trips that can be interleaved in an itinerary.",
-          "Prefer results relevant to traveler profile and hard-point timing.",
-          "Output either a JSON object with key 'results' or a JSON array.",
-          "Each result item fields:",
-          "title (string), kind ('main-location'|'event'|'trip'), city (string), date (YYYY-MM-DD optional),",
-          "startHint (YYYY-MM-DDTHH:mm optional), tags (array of strings), reason (string), locationQuery (string optional), lat (number optional), lng (number optional).",
-        ].join(" "),
-      },
-      {
-        role: "user",
-        content: JSON.stringify({
-          userQuery: query,
-          anchorLocation: location || null,
-          targetDate: date || null,
-          maxResults: Math.min(20, Math.max(1, resultCount)),
-          travelerProfile: state.profile,
-          tripContext: state.tripContext,
-          memoryTopTags: Object.entries(state.memory.tagScores).sort((a, b) => b[1] - a[1]).slice(0, 8),
-          hardPoints: hardPointContext,
-          fillWindows: calculatePlanningWindows().map((window) => ({
-            start: window.startIso,
-            end: window.endIso,
-            hours: window.hours,
-          })),
-          existingRecentPlaceResults: state.lastPlaces.slice(0, 15),
-          existingRecentEventResults: state.lastEvents.slice(0, 15),
-        }),
-      },
-    ],
-  };
-
-  const response = await fetch(state.llm.endpoint, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${state.llm.apiKey}`,
+  const messages = [
+    {
+      role: "system",
+      content: [
+        "You are a trip planning assistant.",
+        "Return ONLY valid JSON.",
+        "Generate recommendations for main locations, events, and trips that can be interleaved in an itinerary.",
+        "Prefer results relevant to traveler profile and hard-point timing.",
+        "Output either a JSON object with key 'results' or a JSON array.",
+        "Each result item fields:",
+        "title (string), kind ('main-location'|'event'|'trip'), city (string), date (YYYY-MM-DD optional),",
+        "startHint (YYYY-MM-DDTHH:mm optional), tags (array of strings), reason (string), locationQuery (string optional), lat (number optional), lng (number optional).",
+      ].join(" "),
     },
-    body: JSON.stringify(payload),
-  });
+    {
+      role: "user",
+      content: JSON.stringify({
+        userQuery: query,
+        anchorLocation: location || null,
+        targetDate: date || null,
+        maxResults: Math.min(20, Math.max(1, resultCount)),
+        travelerProfile: state.profile,
+        tripContext: state.tripContext,
+        memoryTopTags: Object.entries(state.memory.tagScores).sort((a, b) => b[1] - a[1]).slice(0, 8),
+        hardPoints: hardPointContext,
+        fillWindows: calculatePlanningWindows().map((window) => ({
+          start: window.startIso,
+          end: window.endIso,
+          hours: window.hours,
+        })),
+        existingRecentPlaceResults: state.lastPlaces.slice(0, 15),
+        existingRecentEventResults: state.lastEvents.slice(0, 15),
+      }),
+    },
+  ];
 
-  if (!response.ok) {
-    const details = await response.text();
-    throw new Error(`LLM provider returned ${response.status}: ${details.slice(0, 240)}`);
-  }
-
-  const responseJson = await response.json();
-  const rawContent = responseJson.choices?.[0]?.message?.content;
-  let content = "";
-  if (Array.isArray(rawContent)) {
-    content = rawContent.map((part) => (typeof part === "string" ? part : part?.text || "")).join("\n");
-  } else {
-    content = String(rawContent || "");
-  }
-  if (!content.trim()) {
-    throw new Error("LLM provider returned an empty answer.");
-  }
-
-  const parsed = parseJsonFromLlmText(content);
+  const parsed = await callLlmJson(messages, 0.2);
   const rawItems = Array.isArray(parsed)
     ? parsed
     : Array.isArray(parsed.results)
