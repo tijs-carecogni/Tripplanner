@@ -245,6 +245,11 @@ function bindElements() {
     "eventRadius",
     "eventInterleaveTime",
     "eventResults",
+    "phaseVisual",
+    "routeStripVisual",
+    "activityMixVisual",
+    "tripPulseVisual",
+    "mapLegend",
     "itineraryList",
     "refreshSuggestionsBtn",
     "customSuggestionForm",
@@ -360,6 +365,7 @@ function renderAll() {
   renderLlmResults();
   renderEventResults();
   renderRouteResults();
+  renderExperienceVisuals();
   renderMap();
 }
 
@@ -3416,6 +3422,226 @@ function renderRouteResults() {
   els.routeResults.innerHTML = cards.join("");
 }
 
+function renderExperienceVisuals() {
+  renderPhaseVisual();
+  renderRouteStripVisual();
+  renderActivityMixVisual();
+  renderTripPulseVisual();
+  renderMapLegend();
+}
+
+function renderPhaseVisual() {
+  const phases = getWorkflowPhases();
+  const html = [];
+  phases.forEach((phase, index) => {
+    html.push(`
+      <div class="phase-step ${phase.done ? "done" : ""} ${phase.active ? "active" : ""}">
+        <span>${phase.done ? "✓" : phase.active ? "●" : "○"}</span>
+        <span>${htmlEscape(phase.label)}</span>
+      </div>
+    `);
+    if (index < phases.length - 1) {
+      html.push("<span class='phase-link'></span>");
+    }
+  });
+  els.phaseVisual.innerHTML = html.join("");
+}
+
+function getWorkflowPhases() {
+  const hasPref = Boolean(state.profile.name || state.profile.interests.length || state.tripContext.likedExamples?.length);
+  const hasHard = state.hardPoints.length > 0;
+  const hasOutline = state.outlineDraft.blocks.length > 0;
+  const hasFeedback = state.memory.ratingsHistory.length >= 5 || Object.keys(state.conversation.learnedLikes || {}).length >= 2;
+  const hasFill = state.plannedStops.length >= 3 || state.softPois.length >= 3;
+  const phases = [
+    { label: "Discover taste", done: hasPref },
+    { label: "Lock anchors", done: hasHard },
+    { label: "Outline", done: hasOutline },
+    { label: "Rate & learn", done: hasFeedback },
+    { label: "Refine fill", done: hasFill },
+  ];
+  const firstOpen = phases.findIndex((phase) => !phase.done);
+  return phases.map((phase, index) => ({
+    ...phase,
+    active: firstOpen === -1 ? index === phases.length - 1 : index === firstOpen,
+  }));
+}
+
+function renderRouteStripVisual() {
+  const anchors = getPlanningAnchors().filter((entry) => Number.isFinite(entry.lat) && Number.isFinite(entry.lng));
+  if (!anchors.length) {
+    els.routeStripVisual.innerHTML = "<div class='route-node-chip'>Add hard points/nodes to see route strip.</div>";
+    return;
+  }
+  const parts = [];
+  anchors.forEach((point, index) => {
+    parts.push(`<span class="route-node-chip">${htmlEscape(point.city || point.title)}</span>`);
+    const next = anchors[index + 1];
+    if (!next) return;
+    const type = getSegmentTransportType(point, next);
+    const meta = getTransportMeta(type);
+    const km = haversineKm(point.lat, point.lng, next.lat, next.lng);
+    parts.push(`<span class="route-segment-chip segment-${meta.css}">${meta.icon} ${km.toFixed(0)}km</span>`);
+  });
+  els.routeStripVisual.innerHTML = parts.join("");
+}
+
+function renderActivityMixVisual() {
+  const buckets = {
+    art: 0,
+    nature: 0,
+    food: 0,
+    events: 0,
+    local: 0,
+    transit: 0,
+  };
+  const combined = [...state.plannedStops, ...state.softPois, ...state.hardPoints];
+  combined.forEach((item) => {
+    const bucket = classifyActivityBucket(item);
+    buckets[bucket] += 1;
+  });
+  const total = Object.values(buckets).reduce((sum, value) => sum + value, 0) || 1;
+  const rows = Object.entries(buckets)
+    .sort((a, b) => b[1] - a[1])
+    .map(([name, count]) => {
+      const pct = Math.round((count / total) * 100);
+      return `
+        <div class="mix-row">
+          <span>${htmlEscape(name)}</span>
+          <span class="mix-track"><span class="mix-fill" style="width:${pct}%"></span></span>
+          <span>${pct}%</span>
+        </div>
+      `;
+    });
+  els.activityMixVisual.innerHTML = rows.join("");
+}
+
+function classifyActivityBucket(item) {
+  const text = `${item.type || ""} ${item.kind || ""} ${(item.tags || []).join(" ")} ${item.title || ""}`.toLowerCase();
+  if (/(art|museum|gallery|architecture|design)/.test(text)) return "art";
+  if (/(hike|nature|mountain|park|volcano|trail|outdoor)/.test(text)) return "nature";
+  if (/(food|restaurant|sushi|dining|cafe|market)/.test(text)) return "food";
+  if (/(event|concert|music|festival|nightlife|film)/.test(text)) return "events";
+  if (/(flight|train|transfer|route|transit|airport)/.test(text)) return "transit";
+  return "local";
+}
+
+function renderTripPulseVisual() {
+  const days = getTripSpanDays();
+  if (!days.length) {
+    els.tripPulseVisual.innerHTML = "<div class='route-node-chip'>Set trip dates or hard points to see trip pulse.</div>";
+    return;
+  }
+  const items = getTimelineItems();
+  const bars = days.map((day) => {
+    const dayCount = items.filter((entry) => String(entry.start || "").slice(0, 10) === day.key).length;
+    const height = Math.max(8, Math.min(56, 8 + dayCount * 10));
+    return `
+      <div class="pulse-day">
+        <span class="pulse-bar" style="height:${height}px"></span>
+        <span class="pulse-label">${htmlEscape(day.label)}</span>
+      </div>
+    `;
+  });
+  els.tripPulseVisual.innerHTML = bars.join("");
+}
+
+function getTripSpanDays() {
+  let start = parseDateInput(state.tripContext.startDate);
+  let end = parseDateInput(state.tripContext.endDate, true);
+  const hard = getSortedHardPoints();
+  if (!start && hard.length) start = parseDateInput(hard[0].start);
+  if (!end && hard.length) end = parseDateInput(hard[hard.length - 1].end || hard[hard.length - 1].start);
+  if (!start || !end || end < start) return [];
+
+  const out = [];
+  const cursor = new Date(start);
+  cursor.setHours(0, 0, 0, 0);
+  const last = new Date(end);
+  last.setHours(0, 0, 0, 0);
+  while (cursor <= last && out.length <= 120) {
+    const key = cursor.toISOString().slice(0, 10);
+    const label = `${cursor.getMonth() + 1}/${cursor.getDate()}`;
+    out.push({ key, label });
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return out;
+}
+
+function renderMapLegend() {
+  els.mapLegend.innerHTML = `
+    <span class="legend-chip">✈️ flight leg</span>
+    <span class="legend-chip">🚆 rail leg</span>
+    <span class="legend-chip">🚗 road leg</span>
+    <span class="legend-chip">🚶 short hop</span>
+    <span class="legend-chip">📍 hard point</span>
+  `;
+}
+
+function createStopMarkerIcon(type) {
+  const token = String(type || "").toLowerCase();
+  let icon = "📍";
+  if (token.includes("flight")) icon = "✈️";
+  else if (token.includes("train")) icon = "🚆";
+  else if (token.includes("hotel")) icon = "🏨";
+  else if (token.includes("tour")) icon = "🎟️";
+  else if (token.includes("meeting")) icon = "📌";
+  else if (token.includes("no-planning")) icon = "🌙";
+  return L.divIcon({
+    className: "",
+    html: `<span class="stop-marker">${icon}</span>`,
+    iconSize: [30, 30],
+    iconAnchor: [15, 15],
+  });
+}
+
+function getSegmentTransportType(from, to) {
+  const fromType = String(from.type || from.kind || "").toLowerCase();
+  const toType = String(to.type || to.kind || "").toLowerCase();
+  const joined = `${fromType} ${toType}`;
+  if (joined.includes("flight")) return "flight";
+  if (joined.includes("train")) return "train";
+  const km = haversineKm(from.lat, from.lng, to.lat, to.lng);
+  if (km > 700) return "flight";
+  if (km > 180) return "train";
+  if (km > 25) return "drive";
+  return "walk";
+}
+
+function getTransportMeta(type) {
+  if (type === "flight") return { icon: "✈️", label: "Flight leg", color: "#d14b88", weight: 3.5, dashArray: "2,8", css: "flight" };
+  if (type === "train") return { icon: "🚆", label: "Rail leg", color: "#4f63d8", weight: 3.5, dashArray: "8,8", css: "train" };
+  if (type === "drive") return { icon: "🚗", label: "Road leg", color: "#2d8e4a", weight: 3, dashArray: "", css: "drive" };
+  return { icon: "🚶", label: "Short hop", color: "#7a55ba", weight: 2.8, dashArray: "4,6", css: "walk" };
+}
+
+function createArcCoordinates(from, to, curveFactor = 0.2, points = 24) {
+  const lat1 = from[0];
+  const lng1 = from[1];
+  const lat2 = to[0];
+  const lng2 = to[1];
+  const midLat = (lat1 + lat2) / 2;
+  const midLng = (lng1 + lng2) / 2;
+  const dx = lng2 - lng1;
+  const dy = lat2 - lat1;
+  const curveLat = midLat + (-dx * curveFactor);
+  const curveLng = midLng + (dy * curveFactor);
+
+  const coords = [];
+  for (let i = 0; i <= points; i += 1) {
+    const t = i / points;
+    const lat = ((1 - t) * (1 - t) * lat1) + (2 * (1 - t) * t * curveLat) + (t * t * lat2);
+    const lng = ((1 - t) * (1 - t) * lng1) + (2 * (1 - t) * t * curveLng) + (t * t * lng2);
+    coords.push([lat, lng]);
+  }
+  return coords;
+}
+
+function getPolylineMidpoint(coords) {
+  if (!Array.isArray(coords) || !coords.length) return null;
+  return coords[Math.floor(coords.length / 2)];
+}
+
 function renderMap() {
   layers.hardPoints.clearLayers();
   layers.routeNodes.clearLayers();
@@ -3430,7 +3656,10 @@ function renderMap() {
   const sorted = getSortedHardPoints();
   sorted.forEach((point, index) => {
     if (!Number.isFinite(point.lat) || !Number.isFinite(point.lng)) return;
-    const marker = L.marker([point.lat, point.lng], { title: point.title })
+    const marker = L.marker([point.lat, point.lng], {
+      title: point.title,
+      icon: createStopMarkerIcon(point.type),
+    })
       .bindPopup(`<strong>${htmlEscape(point.title)}</strong><br>${htmlEscape(point.locationLabel || point.city || "")}<br>Hard point #${index + 1}`);
     marker.addTo(layers.hardPoints);
     mapElements.push(marker);
@@ -3462,12 +3691,40 @@ function renderMap() {
     mapElements.push(marker);
   });
 
-  const timelineCoords = getTimelineItems()
-    .filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng))
-    .map((point) => [point.lat, point.lng]);
-  if (timelineCoords.length >= 2) {
-    const path = L.polyline(timelineCoords, { color: "#355f9e", weight: 3, dashArray: "6,6" }).addTo(layers.itineraryPath);
-    mapElements.push(path);
+  const timelinePoints = getTimelineItems().filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng));
+  if (timelinePoints.length >= 2) {
+    for (let i = 0; i < timelinePoints.length - 1; i += 1) {
+      const from = timelinePoints[i];
+      const to = timelinePoints[i + 1];
+      const transportType = getSegmentTransportType(from, to);
+      const transport = getTransportMeta(transportType);
+      const segmentCoords = transportType === "flight"
+        ? createArcCoordinates([from.lat, from.lng], [to.lat, to.lng], 0.2)
+        : [[from.lat, from.lng], [to.lat, to.lng]];
+      const line = L.polyline(segmentCoords, {
+        color: transport.color,
+        weight: transport.weight,
+        opacity: 0.86,
+        dashArray: transport.dashArray,
+      }).bindPopup(`${transport.icon} ${transport.label}: ${htmlEscape(from.title)} -> ${htmlEscape(to.title)}`);
+      line.addTo(layers.itineraryPath);
+      mapElements.push(line);
+
+      const mid = getPolylineMidpoint(segmentCoords);
+      if (mid) {
+        const marker = L.marker(mid, {
+          icon: L.divIcon({
+            className: "",
+            html: `<span class="transport-marker">${transport.icon}</span>`,
+            iconSize: [26, 26],
+            iconAnchor: [13, 13],
+          }),
+          interactive: false,
+        });
+        marker.addTo(layers.itineraryPath);
+        mapElements.push(marker);
+      }
+    }
   } else if (sorted.length >= 2) {
     const coords = sorted
       .filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng))

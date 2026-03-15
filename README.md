@@ -7,6 +7,7 @@ A lightweight MindTrip-like travel planner focused on:
 - **Memory development** (learns your likes/dislikes from ratings)
 - **Personalized suggestions** (and custom ideas you can add/rate)
 - **Map + itinerary visualization**
+- **Visual journey board** (phase tracker, route strip, activity mix, trip pulse)
 - **Main location + trip discovery**
 - **Event discovery**
 - **Interleaving flexible stops between hard points**
@@ -40,6 +41,12 @@ A lightweight MindTrip-like travel planner focused on:
   - **interleaved** as flexible stops in the timeline, or
   - **locked** as hard points.
 - Interleaved locations/trips/events are merged chronologically with hard points in one itinerary.
+
+### Visual Layer (Beyond Map)
+- Animated workflow phase tracker (discover -> anchor -> outline -> rate -> refine).
+- Country/region route strip with transport icons and segment distances.
+- Activity-mix bars and trip pulse timeline for day density.
+- Styled map legs with transport-aware lines (flight arcs, rail/road/walk styles) and icon markers.
 
 ### 5) Two-level Route Planning (MindTrip-style)
 - **Level 1 (Route level):** create route node sets (main stops/hubs).
