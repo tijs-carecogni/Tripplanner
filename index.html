@@ -82,6 +82,10 @@
             Extra style notes
             <textarea id="tripStyleNotes" rows="2" placeholder="Prefer 2 big experiences per day and a relaxed evening"></textarea>
           </label>
+          <label>
+            Examples of trips/activities you loved before
+            <textarea id="tripLikedExamples" rows="3" placeholder="mtb downhill near a volcano in Arequipa, Insel Hombroich, hiking near Karakol, Boros collection"></textarea>
+          </label>
           <button type="submit">Save trip context</button>
         </form>
 
@@ -118,8 +122,15 @@
           <button id="startSideTrackBtn" type="button">Go on side-track</button>
           <button id="returnMainPlanningBtn" type="button">Back to main trip planning</button>
         </div>
+        <div class="stack inline-two">
+          <button id="generateOutlineBtn" type="button">Generate rough outline first</button>
+          <button id="suggestFillStrategiesBtn" type="button">Suggest ways to fill gaps</button>
+          <button id="showUnderstandingBtn" type="button">Show understanding snapshot</button>
+        </div>
         <div id="conversationTranscript" class="conversation"></div>
         <div id="conversationInsights" class="memory-summary"></div>
+        <h3 class="subheader">Soft-added POIs (tentative)</h3>
+        <ul id="softPoiList" class="list"></ul>
       </section>
 
       <section class="card">
@@ -138,6 +149,7 @@
               <option value="hotel">Hotel</option>
               <option value="tour">Booked Tour</option>
               <option value="meeting">Meeting</option>
+              <option value="no-planning">No planning block</option>
             </select>
           </label>
           <label>

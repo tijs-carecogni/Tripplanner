@@ -79,6 +79,13 @@ A lightweight MindTrip-like travel planner focused on:
 - Feedback updates user memory (likes/dislikes tags) and fine-tunes future suggestions.
 - Supports **side-track mode** for deep dives into activities, then returning to **main planning** while carrying learned signals.
 - Conversation insights are included in the itinerary generation context.
+- Includes **rough-outline-first** generation and **multiple fill strategies** you can choose/feedback on.
+- Supports **soft-added POIs** (tentative places) that can later be interleaved, locked, rated, or removed.
+- Supports context checks on demand so you can ask what the planner currently understands about:
+  - user context
+  - trip context
+  - hard points
+- Supports no-planning hard-point blocks (e.g., overnight village stays where planner should not fill activities).
 
 ### 10) Route Comparison (Google Maps-style concept)
 - Compare multiple route profiles: driving, cycling, walking.

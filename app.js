@@ -43,6 +43,7 @@ function createDefaultState() {
       mustInclude: [],
       avoid: [],
       styleNotes: "",
+      likedExamples: [],
     },
     conversation: {
       mode: "main-planning",
@@ -52,6 +53,7 @@ function createDefaultState() {
       learnedDislikes: {},
     },
     hardPoints: [],
+    softPois: [],
     routeSets: [],
     plannedStops: [],
     customSuggestions: [],
@@ -63,6 +65,11 @@ function createDefaultState() {
       routeNodes: [],
       detailStops: [],
       generatedAt: "",
+    },
+    outlineDraft: {
+      blocks: [],
+      strategies: [],
+      updatedAt: "",
     },
     routeComparison: null,
     llm: {
@@ -87,7 +94,12 @@ function loadState() {
       ...defaults,
       ...parsed,
       profile: { ...defaults.profile, ...(parsed.profile || {}) },
-      tripContext: { ...defaults.tripContext, ...(parsed.tripContext || {}) },
+      tripContext: {
+        ...defaults.tripContext,
+        ...(parsed.tripContext || {}),
+        likedExamples: Array.isArray(parsed?.tripContext?.likedExamples) ? parsed.tripContext.likedExamples : [],
+      },
+      softPois: Array.isArray(parsed.softPois) ? parsed.softPois : [],
       conversation: {
         ...defaults.conversation,
         ...(parsed.conversation || {}),
@@ -108,6 +120,12 @@ function loadState() {
         ...(parsed.lastUnifiedSearch || {}),
         routeNodes: Array.isArray(parsed?.lastUnifiedSearch?.routeNodes) ? parsed.lastUnifiedSearch.routeNodes : [],
         detailStops: Array.isArray(parsed?.lastUnifiedSearch?.detailStops) ? parsed.lastUnifiedSearch.detailStops : [],
+      },
+      outlineDraft: {
+        ...defaults.outlineDraft,
+        ...(parsed.outlineDraft || {}),
+        blocks: Array.isArray(parsed?.outlineDraft?.blocks) ? parsed.outlineDraft.blocks : [],
+        strategies: Array.isArray(parsed?.outlineDraft?.strategies) ? parsed.outlineDraft.strategies : [],
       },
       llm: { ...DEFAULT_LLM_CONFIG, ...(parsed.llm || {}) },
     };
@@ -143,6 +161,7 @@ function bindElements() {
     "tripMustInclude",
     "tripAvoid",
     "tripStyleNotes",
+    "tripLikedExamples",
     "llmItineraryForm",
     "itineraryGenerationRequest",
     "itineraryGenerationLimit",
@@ -153,8 +172,12 @@ function bindElements() {
     "sideTrackTopic",
     "startSideTrackBtn",
     "returnMainPlanningBtn",
+    "generateOutlineBtn",
+    "suggestFillStrategiesBtn",
+    "showUnderstandingBtn",
     "conversationTranscript",
     "conversationInsights",
+    "softPoiList",
     "hardPointForm",
     "hardPointList",
     "hpTitle",
@@ -254,7 +277,11 @@ function bindEvents() {
   els.conversationForm.addEventListener("submit", handleConversationSubmit);
   els.startSideTrackBtn.addEventListener("click", handleStartSideTrack);
   els.returnMainPlanningBtn.addEventListener("click", handleReturnToMainPlanning);
+  els.generateOutlineBtn.addEventListener("click", handleGenerateRoughOutline);
+  els.suggestFillStrategiesBtn.addEventListener("click", handleSuggestFillStrategies);
+  els.showUnderstandingBtn.addEventListener("click", handleShowUnderstandingSnapshot);
   els.conversationTranscript.addEventListener("click", handleConversationAction);
+  els.softPoiList.addEventListener("click", handleSoftPoiAction);
   els.hardPointForm.addEventListener("submit", handleAddHardPoint);
   els.hardPointList.addEventListener("click", handleHardPointAction);
   els.routeSetForm.addEventListener("submit", handleAddRouteSet);
@@ -295,6 +322,7 @@ function hydrateTripContextForm() {
   els.tripMustInclude.value = (state.tripContext.mustInclude || []).join(", ");
   els.tripAvoid.value = (state.tripContext.avoid || []).join(", ");
   els.tripStyleNotes.value = state.tripContext.styleNotes || "";
+  els.tripLikedExamples.value = (state.tripContext.likedExamples || []).join("\n");
 }
 
 function hydrateLlmForm() {
@@ -312,6 +340,7 @@ function renderAll() {
   renderTripContextSummary();
   renderConversation();
   renderConversationInsights();
+  renderSoftPois();
   renderHardPoints();
   renderRouteSets();
   renderRouteNodeSetOptions();
@@ -343,6 +372,10 @@ function handleSaveProfile(event) {
 
 function handleSaveTripContext(event) {
   event.preventDefault();
+  const likedExamples = String(els.tripLikedExamples.value || "")
+    .split("\n")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
   state.tripContext = {
     startDate: els.tripStartDate.value || "",
     endDate: els.tripEndDate.value || "",
@@ -350,7 +383,9 @@ function handleSaveTripContext(event) {
     mustInclude: parseTags(els.tripMustInclude.value),
     avoid: parseTags(els.tripAvoid.value),
     styleNotes: els.tripStyleNotes.value.trim(),
+    likedExamples,
   };
+  applyLikedExamplesToMemory(likedExamples);
   saveState();
   renderTripContextSummary();
   setStatus("Trip context saved for itinerary generation.");
@@ -365,9 +400,23 @@ function renderTripContextSummary() {
     <div><strong>Primary destination:</strong> ${htmlEscape(state.tripContext.primaryDestination || "not set")}</div>
     <div><strong>Must include:</strong> ${htmlEscape((state.tripContext.mustInclude || []).join(", ") || "none")}</div>
     <div><strong>Avoid:</strong> ${htmlEscape((state.tripContext.avoid || []).join(", ") || "none")}</div>
+    <div><strong>Loved examples:</strong> ${htmlEscape((state.tripContext.likedExamples || []).slice(0, 3).join(" | ") || "none")}</div>
     <div><strong>Hard points:</strong> ${hardCount} | <strong>LLM-generated parts:</strong> ${generatedCount}</div>
     <div><strong>Fill windows detected:</strong> ${windows.length}</div>
   `;
+}
+
+function applyLikedExamplesToMemory(examples) {
+  const parsedExamples = Array.isArray(examples) ? examples : [];
+  const extractedTags = [];
+  parsedExamples.forEach((entry) => {
+    extractedTags.push(...extractPreferenceTagsFromText(entry));
+    const geoTags = parseTags(entry).filter((token) => token.length > 3);
+    extractedTags.push(...geoTags.slice(0, 3));
+  });
+  const unique = [...new Set(extractedTags.map((tag) => normalizePreferenceTag(tag)).filter(Boolean))];
+  if (!unique.length) return;
+  applyConversationPreference(unique, 1, "liked-examples");
 }
 
 function ensureConversationInitialized() {
@@ -425,8 +474,12 @@ function renderConversation() {
                   <button type="button" data-action="option-feedback" data-message-id="${message.id}" data-option-id="${option.id}" data-feedback="love">Love</button>
                   <button type="button" data-action="option-feedback" data-message-id="${message.id}" data-option-id="${option.id}" data-feedback="maybe">Maybe</button>
                   <button type="button" data-action="option-feedback" data-message-id="${message.id}" data-option-id="${option.id}" data-feedback="no">No</button>
-                  <button type="button" data-action="option-interleave" data-message-id="${message.id}" data-option-id="${option.id}">Interleave</button>
-                  <button type="button" data-action="option-lock" data-message-id="${message.id}" data-option-id="${option.id}">Lock</button>
+                  ${option.kind === "strategy"
+                    ? `<button type="button" data-action="option-use-strategy" data-message-id="${message.id}" data-option-id="${option.id}">Use strategy</button>`
+                    : `<button type="button" data-action="option-soft-poi" data-message-id="${message.id}" data-option-id="${option.id}">Soft add POI</button>
+                       <button type="button" data-action="option-interleave" data-message-id="${message.id}" data-option-id="${option.id}">Interleave</button>
+                       <button type="button" data-action="option-lock" data-message-id="${message.id}" data-option-id="${option.id}">Lock</button>`
+                  }
                 </div>
               </div>
             `).join("")}
@@ -456,6 +509,109 @@ function renderConversationInsights() {
   `;
 }
 
+function addSoftPoiFromSource(source, { sourceKind, type, notes, startHint }) {
+  const item = {
+    id: generateId("poi"),
+    title: source.title,
+    kind: type || source.kind || source.category || "poi",
+    sourceKind: sourceKind || source.sourceKind || "soft-poi",
+    city: source.city || "",
+    locationQuery: source.locationQuery || source.locationLabel || source.venue || source.title || "",
+    startHint: startHint || source.startHint || "",
+    notes: notes || source.notes || "",
+    tags: Array.isArray(source.tags) ? source.tags : parseTags(source.tags || source.kind || "poi"),
+    lat: Number(source.lat),
+    lng: Number(source.lng),
+    createdAt: new Date().toISOString(),
+  };
+  state.softPois.unshift(item);
+  state.softPois = state.softPois.slice(0, 120);
+  saveState();
+  renderSoftPois();
+}
+
+function renderSoftPois() {
+  if (!state.softPois.length) {
+    els.softPoiList.innerHTML = "<li class='list-item'>No tentative POIs yet.</li>";
+    return;
+  }
+  els.softPoiList.innerHTML = state.softPois
+    .map((poi) => `
+      <li class="list-item">
+        <h4>${htmlEscape(poi.title)}</h4>
+        <div class="meta">${htmlEscape(poi.kind)} | ${htmlEscape(poi.city || "Unknown city")}</div>
+        ${poi.notes ? `<div class="meta">${htmlEscape(poi.notes)}</div>` : ""}
+        <div class="item-actions">
+          <button type="button" data-action="poi-interleave" data-id="${poi.id}">Interleave</button>
+          <button type="button" data-action="poi-lock" data-id="${poi.id}">Lock</button>
+          <button type="button" data-action="poi-rate" data-id="${poi.id}" data-rating="4">Rate 4</button>
+          <button type="button" data-action="poi-rate" data-id="${poi.id}" data-rating="5">Rate 5</button>
+          <button type="button" data-action="poi-remove" data-id="${poi.id}">Remove</button>
+        </div>
+      </li>
+    `)
+    .join("");
+}
+
+async function handleSoftPoiAction(event) {
+  const button = event.target.closest("button[data-action]");
+  if (!button) return;
+  const action = button.dataset.action;
+  const poiId = button.dataset.id;
+  const poi = state.softPois.find((entry) => entry.id === poiId);
+  if (!poi) return;
+
+  if (action === "poi-remove") {
+    state.softPois = state.softPois.filter((entry) => entry.id !== poiId);
+    saveState();
+    renderSoftPois();
+    setStatus(`Removed tentative POI "${poi.title}".`);
+    return;
+  }
+
+  if (action === "poi-rate") {
+    const rating = Number(button.dataset.rating);
+    applyRating({
+      itemId: poi.id,
+      title: poi.title,
+      city: poi.city,
+      tags: poi.tags || [poi.kind || "poi"],
+      kind: "soft-poi",
+    }, rating);
+    return;
+  }
+
+  try {
+    const enriched = await ensureCoordinatesForGenericItem(poi);
+    if (action === "poi-interleave") {
+      addPlannedStopFromSource(enriched, {
+        sourceKind: "soft-poi",
+        type: enriched.kind || "poi",
+        start: enriched.startHint || suggestInterleaveStart(),
+        notes: "Promoted from tentative POI",
+      });
+      setStatus(`Interleaved "${enriched.title}" from tentative POIs.`);
+      return;
+    }
+    if (action === "poi-lock") {
+      pinAsHardPoint({
+        title: enriched.title,
+        type: enriched.kind || "poi",
+        city: enriched.city,
+        locationLabel: enriched.locationQuery || enriched.title,
+        lat: enriched.lat,
+        lng: enriched.lng,
+        notes: "Locked from tentative POIs",
+        start: enriched.startHint || suggestInterleaveStart(),
+      });
+      setStatus(`Locked "${enriched.title}" from tentative POIs.`);
+    }
+  } catch (error) {
+    console.error(error);
+    setStatus(`Could not use tentative POI: ${error.message}`, true);
+  }
+}
+
 async function handleConversationSubmit(event) {
   event.preventDefault();
   const text = els.conversationInput.value.trim();
@@ -464,6 +620,13 @@ async function handleConversationSubmit(event) {
   pushConversationMessage("user", text);
   els.conversationForm.reset();
   applyDirectPreferenceFromMessage(text);
+  const quickHandled = await tryHandleQuickConversationCommands(text);
+  if (quickHandled) {
+    saveState();
+    renderAll();
+    setStatus("Applied requested context/hard-point update.");
+    return;
+  }
   renderConversation();
   renderConversationInsights();
 
@@ -485,6 +648,211 @@ async function handleConversationSubmit(event) {
     saveState();
     renderConversation();
     setStatus(`Conversation response fallback used: ${error.message}`, true);
+  }
+}
+
+async function tryHandleQuickConversationCommands(text) {
+  const lowered = String(text || "").toLowerCase();
+  const wantsUser = lowered.includes("user context");
+  const wantsTrip = lowered.includes("trip context");
+  const wantsHard = lowered.includes("hard point") || lowered.includes("hardpoint");
+  const wantsShow = lowered.includes("show") || lowered.includes("what do you understand") || lowered.includes("understanding");
+  const wantsCheck = wantsShow || lowered.includes("?") || lowered.includes("what") || lowered.includes("status");
+  if (wantsCheck && (wantsUser || wantsTrip || wantsHard || lowered.includes("context"))) {
+    pushConversationMessage("assistant", getUnderstandingSnapshotText({ user: true, trip: true, hard: true }));
+    return true;
+  }
+
+  if (lowered.includes("rough outline")) {
+    handleGenerateRoughOutline();
+    return true;
+  }
+
+  if (lowered.includes("fill") && lowered.includes("option")) {
+    handleSuggestFillStrategies();
+    return true;
+  }
+
+  if (lowered.includes("no planning")) {
+    const created = await tryCreateNoPlanningHardPointFromText(text);
+    if (created) return true;
+  }
+
+  return false;
+}
+
+function handleGenerateRoughOutline() {
+  const outline = generateRoughOutline();
+  state.outlineDraft.blocks = outline.blocks;
+  state.outlineDraft.updatedAt = new Date().toISOString();
+  const options = outline.blocks.slice(0, 4).map((block) => ({
+    id: generateId("outline-opt"),
+    title: `${block.label}: ${block.theme}`,
+    kind: "strategy",
+    city: block.city || "",
+    reason: block.reason,
+    tags: block.tags || [],
+    locationQuery: block.city || state.tripContext.primaryDestination || "",
+  }));
+  pushConversationMessage(
+    "assistant",
+    `Rough outline ready with ${outline.blocks.length} blocks. Tell me what to tweak, then I can suggest multiple ways to fill each gap.`,
+    options
+  );
+  saveState();
+  renderAll();
+  setStatus("Generated rough outline and requested feedback.");
+}
+
+function handleSuggestFillStrategies() {
+  const strategies = generateFillStrategies();
+  state.outlineDraft.strategies = strategies;
+  state.outlineDraft.updatedAt = new Date().toISOString();
+  const options = strategies.map((strategy) => ({
+    id: strategy.id,
+    title: strategy.title,
+    kind: "strategy",
+    city: state.tripContext.primaryDestination || "",
+    reason: strategy.reason,
+    tags: strategy.tags,
+    locationQuery: state.tripContext.primaryDestination || "",
+  }));
+  pushConversationMessage(
+    "assistant",
+    "Here are multiple ways to fill your available space. Give feedback or choose one strategy, and I will refine the itinerary iteratively.",
+    options
+  );
+  saveState();
+  renderAll();
+  setStatus("Suggested multiple fill strategies.");
+}
+
+function handleShowUnderstandingSnapshot() {
+  pushConversationMessage("assistant", getUnderstandingSnapshotText({ user: true, trip: true, hard: true }));
+  saveState();
+  renderAll();
+  setStatus("Shared current understanding snapshot.");
+}
+
+function generateRoughOutline() {
+  const windows = calculatePlanningWindows();
+  const preferredTags = Object.entries(state.memory.tagScores)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8)
+    .map(([tag]) => tag);
+
+  const blocks = windows.map((window, index) => {
+    const theme = preferredTags[index % Math.max(1, preferredTags.length)] || "balanced discovery";
+    const cityHint = inferCityForWindow(window);
+    return {
+      id: `outline-${index + 1}`,
+      label: `Block ${index + 1}`,
+      start: window.startIso,
+      end: window.endIso,
+      hours: window.hours,
+      city: cityHint,
+      theme,
+      reason: `Fits free window (${window.hours}h) between ${window.beforeHardPoint || "trip start"} and ${window.afterHardPoint || "trip end"}.`,
+      tags: [theme, "outline"],
+    };
+  });
+  return { blocks };
+}
+
+function generateFillStrategies() {
+  const likes = Object.entries(state.conversation.learnedLikes || {}).sort((a, b) => b[1] - a[1]).map(([tag]) => tag);
+  const mustInclude = state.tripContext.mustInclude || [];
+  const baseTags = [...new Set([...mustInclude, ...likes].filter(Boolean))];
+  const primary = baseTags[0] || "culture";
+  const secondary = baseTags[1] || "food";
+  return [
+    {
+      id: generateId("strategy"),
+      title: `Focused depth: ${primary}`,
+      reason: `Concentrate each day on one strong theme (${primary}) plus one light counterpoint.`,
+      tags: [primary, "deep-dive"],
+    },
+    {
+      id: generateId("strategy"),
+      title: `Balanced mix: ${primary} + ${secondary}`,
+      reason: "Split days into morning/afternoon themes and keep evenings flexible.",
+      tags: [primary, secondary, "balanced"],
+    },
+    {
+      id: generateId("strategy"),
+      title: "Event-led evenings",
+      reason: "Use daytime for anchor places and reserve evenings for events you can rate/soft-add first.",
+      tags: ["event", "nightlife", secondary],
+    },
+  ];
+}
+
+function inferCityForWindow(window) {
+  const anchors = getPlanningAnchors();
+  const startTime = Date.parse(window.startIso);
+  const nearest = anchors
+    .filter((anchor) => anchor.city)
+    .map((anchor) => ({
+      city: anchor.city,
+      diff: Math.abs((Date.parse(anchor.start) || 0) - startTime),
+    }))
+    .sort((a, b) => a.diff - b.diff)[0];
+  return nearest?.city || state.tripContext.primaryDestination || "";
+}
+
+function getUnderstandingSnapshotText({ user, trip, hard }) {
+  const parts = [];
+  if (user) {
+    const likes = Object.entries(state.conversation.learnedLikes || {}).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([tag]) => tag);
+    const dislikes = Object.entries(state.conversation.learnedDislikes || {}).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([tag]) => tag);
+    parts.push(`User context -> name: ${state.profile.name || "n/a"}, budget: ${state.profile.budget}, pace: ${state.profile.pace}, interests: ${(state.profile.interests || []).join(", ") || "n/a"}, learned likes: ${likes.join(", ") || "n/a"}, learned dislikes: ${dislikes.join(", ") || "n/a"}.`);
+  }
+  if (trip) {
+    parts.push(`Trip context -> ${state.tripContext.startDate || "?"} to ${state.tripContext.endDate || "?"}, destination: ${state.tripContext.primaryDestination || "n/a"}, must include: ${(state.tripContext.mustInclude || []).join(", ") || "n/a"}, avoid: ${(state.tripContext.avoid || []).join(", ") || "n/a"}, liked examples: ${(state.tripContext.likedExamples || []).slice(0, 4).join(" | ") || "n/a"}.`);
+  }
+  if (hard) {
+    const hardPoints = getSortedHardPoints().map((point) => `${point.title} (${formatDateTime(point.start)})`).slice(0, 12);
+    parts.push(`Hard points -> ${hardPoints.length ? hardPoints.join("; ") : "none yet"}.`);
+  }
+  return parts.join(" ");
+}
+
+async function tryCreateNoPlanningHardPointFromText(text) {
+  const lowered = String(text || "").toLowerCase();
+  if (!lowered.includes("no planning")) return false;
+  const locationMatch = text.match(/\bin\s+([A-Za-z][A-Za-z\s'-]{1,60})/i);
+  const location = locationMatch ? locationMatch[1].trim() : (state.tripContext.primaryDestination || "");
+  if (!location) return false;
+
+  const dateMatch = text.match(/\b(20\d{2}-\d{2}-\d{2})\b/);
+  const baseDate = dateMatch ? dateMatch[1] : "";
+  const startDate = baseDate ? new Date(`${baseDate}T18:00`) : new Date(suggestInterleaveStart());
+  const endDate = new Date(startDate);
+  endDate.setHours(endDate.getHours() + (lowered.includes("overnight") ? 14 : 6));
+
+  try {
+    const geo = await geocodeLocation(location);
+    const point = {
+      id: generateId("hp"),
+      title: `No planning block - ${geo.city || location}`,
+      type: "no-planning",
+      start: startDate.toISOString().slice(0, 16),
+      end: endDate.toISOString().slice(0, 16),
+      locationLabel: geo.label,
+      city: geo.city,
+      lat: geo.lat,
+      lng: geo.lng,
+      bookingRef: "",
+      notes: "Added from conversation command (no planning needed).",
+      createdAt: new Date().toISOString(),
+    };
+    state.hardPoints.push(point);
+    sortHardPointsInPlace();
+    pushConversationMessage("assistant", `Added hard point: "${point.title}" from ${formatDateTime(point.start)} to ${formatDateTime(point.end)}. I will avoid planning in this block.`);
+    return true;
+  } catch (error) {
+    pushConversationMessage("assistant", `I understood a no-planning request but could not resolve location "${location}". Please add this block in Hard Points form.`);
+    return true;
   }
 }
 
@@ -510,6 +878,7 @@ async function callLlmConversationReply(userText) {
       content: [
         "You are a trip-planning copilot with memory refinement behavior.",
         "Return ONLY valid JSON.",
+        "Prefer a rough-outline-first approach before detailed planning.",
         "Ask clarifying questions if user intent is unclear.",
         "Offer multiple options and adapt with user feedback.",
         "Support side-track exploration and return to main planning while preserving insights.",
@@ -652,6 +1021,31 @@ async function handleConversationAction(event) {
     const delta = feedback === "love" ? 2 : feedback === "maybe" ? 1 : -2;
     applyConversationPreference(option.tags, delta, option.title);
     pushConversationMessage("assistant", `Noted: ${feedback} for "${option.title}". I updated your memory and will tune next suggestions.`);
+    saveState();
+    renderAll();
+    return;
+  }
+
+  if (action === "option-soft-poi") {
+    addSoftPoiFromSource(option, {
+      sourceKind: "conversation-option",
+      type: option.kind || "activity",
+      notes: "Soft added from conversation option",
+      startHint: option.startHint || suggestInterleaveStart(),
+    });
+    setStatus(`Soft-added "${option.title}" from conversation.`);
+    return;
+  }
+
+  if (action === "option-use-strategy") {
+    const strategyTags = option.tags || [];
+    const mergedMust = [...new Set([...(state.tripContext.mustInclude || []), ...strategyTags])];
+    state.tripContext.mustInclude = mergedMust.slice(0, 25);
+    state.tripContext.styleNotes = [state.tripContext.styleNotes, `Preferred fill strategy: ${option.title}`]
+      .filter(Boolean)
+      .join(" | ");
+    applyConversationPreference(strategyTags, 1, option.title);
+    pushConversationMessage("assistant", `Applied strategy "${option.title}". I updated trip context and memory; now ask me to fill itinerary parts with this approach.`);
     saveState();
     renderAll();
     return;
@@ -1936,6 +2330,7 @@ function renderPlaceResults() {
         <div class="meta">${htmlEscape(item.description || "Suggested place/trip")}</div>
         <div class="item-actions">
           <button type="button" data-action="interleave-place" data-id="${item.id}">Interleave in itinerary</button>
+          <button type="button" data-action="soft-place" data-id="${item.id}">Soft add POI</button>
           <button type="button" data-action="lock-place" data-id="${item.id}">Lock as hard point</button>
           <button type="button" data-action="rate-place" data-id="${item.id}" data-rating="3">Rate 3</button>
           <button type="button" data-action="rate-place" data-id="${item.id}" data-rating="4">Rate 4</button>
@@ -1963,6 +2358,17 @@ function handlePlaceAction(event) {
       notes: "Interleaved from location/trip finder",
     });
     setStatus(`Interleaved "${place.title}" into itinerary timeline.`);
+    return;
+  }
+
+  if (action === "soft-place") {
+    addSoftPoiFromSource(place, {
+      sourceKind: place.kind || "main-location",
+      type: place.category || place.kind || "location",
+      notes: "Soft added from location/trip finder",
+      startHint: els.placeInterleaveTime.value || suggestInterleaveStart(),
+    });
+    setStatus(`Soft-added "${place.title}" as tentative POI.`);
     return;
   }
 
@@ -2094,6 +2500,18 @@ function buildUserTripContextSnapshot() {
       city: node.city,
       routeSet: node.routeSetName,
     })),
+    softPois: state.softPois.slice(0, 20).map((poi) => ({
+      title: poi.title,
+      kind: poi.kind,
+      city: poi.city,
+      tags: poi.tags,
+      startHint: poi.startHint,
+    })),
+    outlineDraft: {
+      blocks: state.outlineDraft.blocks.slice(0, 12),
+      strategies: state.outlineDraft.strategies.slice(0, 6),
+      updatedAt: state.outlineDraft.updatedAt,
+    },
     memoryTopTags: Object.entries(state.memory.tagScores).sort((a, b) => b[1] - a[1]).slice(0, 8),
     memoryAvoidTags: Object.entries(state.memory.tagScores).sort((a, b) => a[1] - b[1]).slice(0, 6),
     conversationMode: state.conversation.mode,
@@ -2547,6 +2965,7 @@ function renderLlmResults() {
         <div class="chip-list">${(item.tags || []).map((tag) => `<span class="chip">${htmlEscape(tag)}</span>`).join("")}</div>
         <div class="item-actions">
           <button type="button" data-action="interleave-llm" data-id="${item.id}">Interleave in itinerary</button>
+          <button type="button" data-action="soft-llm" data-id="${item.id}">Soft add POI</button>
           <button type="button" data-action="lock-llm" data-id="${item.id}">Lock as hard point</button>
           <button type="button" data-action="rate-llm" data-id="${item.id}" data-rating="3">Rate 3</button>
           <button type="button" data-action="rate-llm" data-id="${item.id}" data-rating="4">Rate 4</button>
@@ -2574,6 +2993,17 @@ async function handleLlmAction(event) {
       tags: item.tags || [item.kind],
       kind: `llm-${item.kind}`,
     }, rating);
+    return;
+  }
+
+  if (action === "soft-llm") {
+    addSoftPoiFromSource(item, {
+      sourceKind: `llm-${item.kind || "option"}`,
+      type: item.kind || "activity",
+      notes: "Soft added from LLM search",
+      startHint: item.startHint || suggestInterleaveStart(),
+    });
+    setStatus(`Soft-added "${item.title}" from LLM results.`);
     return;
   }
 
@@ -2666,6 +3096,7 @@ function renderEventResults() {
         <div class="meta">${htmlEscape(event.venue || "Venue pending")}</div>
         <div class="item-actions">
           <button type="button" data-action="interleave-event" data-id="${event.id}">Interleave in itinerary</button>
+          <button type="button" data-action="soft-event" data-id="${event.id}">Soft add POI</button>
           <button type="button" data-action="pin-event" data-id="${event.id}">Pin as hard point</button>
           <button type="button" data-action="rate-event" data-id="${event.id}" data-rating="3">Rate 3</button>
           <button type="button" data-action="rate-event" data-id="${event.id}" data-rating="4">Rate 4</button>
@@ -2693,6 +3124,17 @@ function handleEventAction(event) {
       notes: "Interleaved from event finder",
     });
     setStatus(`Interleaved event "${eventData.title}" into itinerary timeline.`);
+    return;
+  }
+
+  if (action === "soft-event") {
+    addSoftPoiFromSource(eventData, {
+      sourceKind: "event",
+      type: "event",
+      notes: "Soft added from event finder",
+      startHint: els.eventInterleaveTime.value || `${eventData.date}T19:00`,
+    });
+    setStatus(`Soft-added event "${eventData.title}" as tentative POI.`);
     return;
   }
 
