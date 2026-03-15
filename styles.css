@@ -116,6 +116,33 @@ input[type="range"] {
   min-height: 1.2rem;
 }
 
+.hint {
+  margin-top: 0.35rem;
+  color: #c8d8f0;
+  min-height: 1.2rem;
+  font-size: 0.9rem;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.trade-row {
+  display: grid;
+  grid-template-columns: 46px 1fr;
+  align-items: center;
+  gap: 0.45rem;
+  margin-bottom: 0.4rem;
+}
+
+select {
+  border: 1px solid var(--border);
+  background: var(--panel-soft);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 0.3rem 0.45rem;
+}
+
 #scoreboard {
   display: grid;
   gap: 0.45rem;
@@ -148,6 +175,21 @@ input[type="range"] {
   margin-top: 0.35rem;
   color: var(--muted);
   font-size: 0.86rem;
+}
+
+.badge-row {
+  margin-top: 0.35rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.badge {
+  font-size: 0.72rem;
+  border: 1px solid #3e4c64;
+  color: #cfe1ff;
+  border-radius: 999px;
+  padding: 0.08rem 0.45rem;
 }
 
 .log {

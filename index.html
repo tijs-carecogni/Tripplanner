@@ -3,13 +3,15 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Colonist-Style AI Arena</title>
+    <title>Colonist-Style Full Game</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
     <header>
-      <h1>Colonist-Style AI Arena</h1>
-      <p class="subtitle">A Catan-inspired simulation with stronger strategic AI.</p>
+      <h1>Colonist-Style Full Game</h1>
+      <p class="subtitle">
+        Catan-inspired browser game with human controls, strategic AI, dev cards, ports, and awards.
+      </p>
     </header>
 
     <main>
@@ -19,15 +21,62 @@
 
       <aside class="sidebar">
         <section class="controls">
-          <h2>Controls</h2>
+          <h2>Turn Controls</h2>
           <div class="button-row">
-            <button id="nextTurnBtn">Next Turn</button>
+            <button id="nextTurnBtn">Auto Current Turn</button>
             <button id="autoplayBtn">Start Autoplay</button>
             <button id="resetBtn">Reset Game</button>
+          </div>
+          <div class="button-row">
+            <button id="rollDiceBtn">Roll Dice</button>
+            <button id="endTurnBtn">End Turn</button>
           </div>
           <label for="speedRange">Autoplay Speed</label>
           <input id="speedRange" type="range" min="150" max="2000" step="50" value="700" />
           <div id="statusText" class="status"></div>
+          <div id="hintText" class="hint"></div>
+        </section>
+
+        <section>
+          <h2>Build</h2>
+          <div class="button-row">
+            <button id="buildRoadBtn">Build Road</button>
+            <button id="buildSettlementBtn">Build Settlement</button>
+            <button id="buildCityBtn">Build City</button>
+          </div>
+          <small class="muted">
+            Select a build action, then click the board target (edge for roads, node for settlements/cities).
+          </small>
+        </section>
+
+        <section>
+          <h2>Development Cards</h2>
+          <div class="button-row">
+            <button id="buyDevBtn">Buy Dev Card</button>
+          </div>
+          <div class="button-row">
+            <button id="playKnightBtn">Play Knight</button>
+            <button id="playRoadBuildingBtn">Road Building</button>
+          </div>
+          <div class="button-row">
+            <button id="playYearOfPlentyBtn">Year of Plenty</button>
+            <button id="playMonopolyBtn">Monopoly</button>
+          </div>
+        </section>
+
+        <section>
+          <h2>Bank Trade</h2>
+          <div class="trade-row">
+            <label for="giveResourceSelect">Give</label>
+            <select id="giveResourceSelect"></select>
+          </div>
+          <div class="trade-row">
+            <label for="getResourceSelect">Get</label>
+            <select id="getResourceSelect"></select>
+          </div>
+          <div class="button-row">
+            <button id="tradeBankBtn">Trade with Bank</button>
+          </div>
         </section>
 
         <section>
@@ -44,8 +93,8 @@
 
     <footer>
       <small>
-        Rules are intentionally streamlined, but the AI plans roads, trades, and upgrades using
-        expected-value scoring.
+        First player is human by default. AI uses probability-weighted planning and tactical robber,
+        road, trade, and dev-card decisions.
       </small>
     </footer>
 

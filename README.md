@@ -1,56 +1,76 @@
-# Colonist-Style AI Arena
+# Colonist-Style Full Game
 
-This repository now contains a **Colonist.io-inspired strategy game prototype** focused on stronger AI decision-making.
+This project is a Catan/Colonist-inspired browser game with a human player and strategic AI opponents.
 
-## What is implemented
+## Features
 
-- 19-hex generated board (radius 2) with:
-  - resource tiles
-  - number tokens
-  - desert + robber
-- Graph-based map logic:
-  - intersections (settlement/city nodes)
-  - road edges
-  - distance rule for settlements
-- Turn loop:
-  - dice production
-  - robber handling on 7 (discard + move + steal)
-  - building roads, settlements, and cities
-  - bank trading (4:1)
-- 4 strategic AI players that:
-  - score intersections by expected production (dice odds)
-  - value resource diversity and scarcity balancing
-  - path roads toward high-value expansion points
-  - choose high-yield city upgrades
-  - trade toward unmet build goals
+### Core board/rules
 
-## Run locally
+- 19-hex generated board (radius 2)
+- resource distribution + number tokens
+- desert + robber
+- node/edge graph with full adjacency validation
+- settlement distance rule
+- turn phases:
+  - roll phase
+  - main phase
+- resource production from settlements/cities
+- robber flow on 7:
+  - hand discard
+  - robber relocation
+  - random steal
 
-Because this is a static browser game, any local static server works.
+### Building and economy
 
-### Option A: Python
+- roads, settlements, cities
+- bank trade with dynamic rates:
+  - base 4:1
+  - 3:1 generic ports
+  - 2:1 resource ports
+- clickable board building for human turns
+
+### Development cards
+
+- deck with:
+  - Knight
+  - Road Building
+  - Year of Plenty
+  - Monopoly
+  - Victory Point
+- one dev card play per turn rule
+- newly bought action cards become usable on later turns
+
+### Awards and scoring
+
+- Longest Road (+2 VP)
+- Largest Army (+2 VP)
+- hidden VP from development cards
+- win condition at 10 VP
+
+### AI improvements
+
+- weighted settlement placement by expected production and diversity
+- road path planning to high-value expansion nodes
+- city-upgrade targeting
+- tactical robber targeting
+- dynamic bank-trade planning toward goal costs
+- development-card usage heuristics
+
+## Run
 
 ```bash
 python3 -m http.server 8000
 ```
 
-Then open:
+Open:
 
-```
-http://localhost:8000
-```
-
-### Option B: VS Code Live Server
-
-Open `index.html` with a live static server extension.
+`http://localhost:8000`
 
 ## Controls
 
-- **Next Turn**: advances one AI turn
-- **Start/Stop Autoplay**: runs turns continuously
-- **Autoplay Speed**: controls turn frequency
-- **Reset Game**: generates a fresh board and restarts the match
-
-## Notes
-
-This project is intentionally streamlined rather than a full Catan rules clone. The main focus is improved AI planning quality over random play.
+- **Auto Current Turn**: auto-plays the active player’s turn
+- **Start/Stop Autoplay**: continuously simulates turns
+- **Roll Dice / End Turn**: manual human turn flow
+- **Build buttons**: choose action, then click board target
+- **Buy/Play Dev Cards**: manage development card strategy
+- **Bank Trade**: select give/get resources and trade by current rate
