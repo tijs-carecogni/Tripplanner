@@ -257,6 +257,33 @@ button:hover {
   padding: 0.6rem;
 }
 
+.list-item,
+.result-card,
+.itinerary-stop,
+.route-node-chip,
+.route-segment-chip,
+.chat-message {
+  transition: transform 0.14s ease, box-shadow 0.14s ease, opacity 0.14s ease, filter 0.14s ease, border-color 0.14s ease;
+}
+
+[data-entity-key],
+[data-segment-key] {
+  cursor: pointer;
+}
+
+.highlight-active {
+  border-color: #5b88d8 !important;
+  box-shadow: 0 0 0 2px rgba(76, 124, 211, 0.22);
+  transform: translateY(-1px);
+  opacity: 1 !important;
+  filter: saturate(1.12);
+}
+
+.highlight-dim {
+  opacity: 0.34;
+  filter: saturate(0.42);
+}
+
 .warning {
   color: #922;
   background: #fff0f0;
@@ -469,6 +496,25 @@ button:hover {
   border: 1px solid #a9c1ec;
   box-shadow: 0 2px 8px rgba(24, 52, 97, 0.22);
   font-size: 15px;
+}
+
+.leaflet-marker-icon.map-highlight-active .stop-marker,
+.leaflet-marker-icon.map-highlight-active .transport-marker {
+  transform: scale(1.12);
+  box-shadow: 0 0 0 2px rgba(81, 129, 214, 0.3), 0 3px 10px rgba(24, 52, 97, 0.34);
+}
+
+.leaflet-marker-icon.map-highlight-dim {
+  opacity: 0.32 !important;
+  filter: grayscale(0.65) saturate(0.62);
+}
+
+.leaflet-interactive.map-highlight-dim {
+  opacity: 0.22 !important;
+}
+
+.leaflet-interactive.map-highlight-active {
+  opacity: 1 !important;
 }
 
 @media (max-width: 1200px) {

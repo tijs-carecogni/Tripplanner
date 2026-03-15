@@ -26,6 +26,9 @@ const els = {};
 let map;
 let layers;
 let state = loadState();
+let mapHighlightEntries = [];
+let highlightedEntityKey = "";
+let highlightedSegmentKey = "";
 
 function createDefaultState() {
   return {
@@ -275,6 +278,7 @@ function initMap() {
     hardPoints: L.layerGroup().addTo(map),
     routeNodes: L.layerGroup().addTo(map),
     plannedStops: L.layerGroup().addTo(map),
+    softPois: L.layerGroup().addTo(map),
     itineraryPath: L.layerGroup().addTo(map),
     routes: L.layerGroup().addTo(map),
     events: L.layerGroup().addTo(map),
@@ -318,6 +322,7 @@ function bindEvents() {
   });
   els.customSuggestionForm.addEventListener("submit", handleAddCustomSuggestion);
   els.suggestionList.addEventListener("click", handleSuggestionAction);
+  bindCrossHighlightInteractions();
 }
 
 function hydrateProfileForm() {
@@ -367,6 +372,7 @@ function renderAll() {
   renderRouteResults();
   renderExperienceVisuals();
   renderMap();
+  applyDOMHighlight();
 }
 
 function handleSaveProfile(event) {
@@ -604,7 +610,7 @@ function renderSoftPois() {
   }
   els.softPoiList.innerHTML = state.softPois
     .map((poi) => `
-      <li class="list-item">
+      <li class="list-item" data-entity-key="${htmlEscape(poi.id)}">
         <h4>${htmlEscape(poi.title)}</h4>
         <div class="meta">${htmlEscape(poi.kind)} | ${htmlEscape(poi.city || "Unknown city")}</div>
         ${poi.notes ? `<div class="meta">${htmlEscape(poi.notes)}</div>` : ""}
@@ -1394,7 +1400,7 @@ function renderHardPoints() {
       const rating = state.memory.itemRatings[point.id];
       const ratingText = rating ? `Current rating: ${rating}/5` : "Rate after booking or experience";
       return `
-      <li class="list-item">
+      <li class="list-item" data-entity-key="${htmlEscape(point.id)}">
         <h4>${htmlEscape(point.title)} <small>(${htmlEscape(point.type)})</small></h4>
         <div class="meta">${formatDateTime(point.start)} ${point.end ? `-> ${formatDateTime(point.end)}` : ""}</div>
         <div class="meta">${htmlEscape(point.locationLabel || point.city || "Unknown location")}</div>
@@ -1528,7 +1534,7 @@ function renderRouteSets() {
       const nodes = Array.isArray(set.nodes) ? set.nodes : [];
       const nodeList = nodes.length
         ? nodes.map((node) => `
-            <li class="meta">
+            <li class="meta" data-entity-key="${htmlEscape(node.id)}">
               ${htmlEscape(node.title)} (${formatDateTime(node.start)})
               <span class="item-actions">
                 <button type="button" data-action="focus-route-node" data-set-id="${set.id}" data-node-id="${node.id}">Map</button>
@@ -1723,7 +1729,7 @@ function renderUnifiedResults() {
   } else {
     els.unifiedRouteResults.innerHTML = routeNodes
       .map((item) => `
-        <article class="result-card">
+        <article class="result-card" data-entity-key="${htmlEscape(item.id)}">
           <strong>${htmlEscape(item.title)}</strong>
           <div class="meta">${htmlEscape(item.kind || item.category || "route-node")} | ${htmlEscape(item.city || "Unknown city")}</div>
           <div class="meta">${htmlEscape(item.description || item.reason || "Route-level candidate")}</div>
@@ -1744,7 +1750,7 @@ function renderUnifiedResults() {
   }
   els.unifiedDetailResults.innerHTML = detailStops
     .map((item) => `
-      <article class="result-card">
+      <article class="result-card" data-entity-key="${htmlEscape(item.id)}">
         <strong>${htmlEscape(item.title)}</strong>
         <div class="meta">${htmlEscape(item.kind || item.category || "detail")} | ${htmlEscape(item.city || "Unknown city")}</div>
         <div class="meta">${htmlEscape(item.description || item.reason || "Detail place/event candidate")}</div>
@@ -1942,7 +1948,7 @@ function renderItinerary() {
       lockLabel = "Route node (main stop)";
     }
     blocks.push(`
-      <article class="itinerary-stop">
+      <article class="itinerary-stop" data-entity-key="${htmlEscape(point.id)}">
         <strong>${i + 1}. ${htmlEscape(point.title)}</strong>
         <div class="meta">${lockLabel} (${htmlEscape(point.type || point.sourceKind || "stop")})</div>
         <div class="meta">${formatDateTime(point.start)} ${point.end ? `-> ${formatDateTime(point.end)}` : ""}</div>
@@ -1954,8 +1960,9 @@ function renderItinerary() {
     if (next) {
       const distance = haversineKm(point.lat, point.lng, next.lat, next.lng);
       const estimateMinutes = Math.round((distance / 70) * 60);
+      const segmentKey = buildSegmentKey(point.id, next.id);
       blocks.push(`
-        <article class="itinerary-stop">
+        <article class="itinerary-stop" data-segment-key="${htmlEscape(segmentKey)}">
           <strong>Transit Segment</strong>
           <div class="meta">${htmlEscape(point.title)} -> ${htmlEscape(next.title)}</div>
           <div class="meta">Approx ${distance.toFixed(1)} km (${formatDurationMinutes(estimateMinutes)} by average road pace)</div>
@@ -2467,7 +2474,7 @@ function renderPlaceResults() {
 
   els.placeResults.innerHTML = state.lastPlaces
     .map((item) => `
-      <article class="result-card">
+      <article class="result-card" data-entity-key="${htmlEscape(item.id)}">
         <strong>${htmlEscape(item.title)}</strong>
         <div class="meta">${htmlEscape(item.city || "Unknown city")} | ${htmlEscape(item.kind || item.category || "location")}</div>
         <div class="meta">${htmlEscape(item.description || "Suggested place/trip")}</div>
@@ -3101,7 +3108,7 @@ function renderLlmResults() {
 
   els.llmSearchResults.innerHTML = state.lastLlmResults
     .map((item) => `
-      <article class="result-card">
+      <article class="result-card" data-entity-key="${htmlEscape(item.id)}">
         <strong>${htmlEscape(item.title)}</strong>
         <div class="meta">${htmlEscape(item.kind)} | ${htmlEscape(item.city || "City not set")}${item.date ? ` | ${htmlEscape(item.date)}` : ""}</div>
         <div class="meta">${htmlEscape(item.description || "LLM recommendation")}</div>
@@ -3234,7 +3241,7 @@ function renderEventResults() {
 
   els.eventResults.innerHTML = state.lastEvents
     .map((event) => `
-      <article class="result-card">
+      <article class="result-card" data-entity-key="${htmlEscape(event.id)}">
         <strong>${htmlEscape(event.title)}</strong>
         <div class="meta">${htmlEscape(event.date)} | ${htmlEscape(event.city)} | ${htmlEscape(event.category)}</div>
         <div class="meta">${htmlEscape(event.venue || "Venue pending")}</div>
@@ -3475,13 +3482,13 @@ function renderRouteStripVisual() {
   }
   const parts = [];
   anchors.forEach((point, index) => {
-    parts.push(`<span class="route-node-chip">${htmlEscape(point.city || point.title)}</span>`);
+    parts.push(`<span class="route-node-chip" data-entity-key="${htmlEscape(point.id)}">${htmlEscape(point.city || point.title)}</span>`);
     const next = anchors[index + 1];
     if (!next) return;
     const type = getSegmentTransportType(point, next);
     const meta = getTransportMeta(type);
     const km = haversineKm(point.lat, point.lng, next.lat, next.lng);
-    parts.push(`<span class="route-segment-chip segment-${meta.css}">${meta.icon} ${km.toFixed(0)}km</span>`);
+    parts.push(`<span class="route-segment-chip segment-${meta.css}" data-segment-key="${htmlEscape(buildSegmentKey(point.id, next.id))}">${meta.icon} ${km.toFixed(0)}km</span>`);
   });
   els.routeStripVisual.innerHTML = parts.join("");
 }
@@ -3642,15 +3649,130 @@ function getPolylineMidpoint(coords) {
   return coords[Math.floor(coords.length / 2)];
 }
 
+function buildSegmentKey(fromId, toId) {
+  return `segment:${String(fromId || "")}:${String(toId || "")}`;
+}
+
+function bindCrossHighlightInteractions() {
+  document.body.addEventListener("pointerover", handleGlobalPointerOver);
+  document.body.addEventListener("pointerout", handleGlobalPointerOut);
+}
+
+function handleGlobalPointerOver(event) {
+  const target = event.target.closest("[data-entity-key], [data-segment-key]");
+  if (!target) return;
+  setHighlightedEntity(target.dataset.entityKey || "", target.dataset.segmentKey || "");
+}
+
+function handleGlobalPointerOut(event) {
+  const current = event.target.closest("[data-entity-key], [data-segment-key]");
+  if (!current) return;
+  const related = event.relatedTarget;
+  const next = related && typeof related.closest === "function"
+    ? related.closest("[data-entity-key], [data-segment-key]")
+    : null;
+  const nextEntity = next?.dataset.entityKey || "";
+  const nextSegment = next?.dataset.segmentKey || "";
+  const currentEntity = current.dataset.entityKey || "";
+  const currentSegment = current.dataset.segmentKey || "";
+  if (currentEntity === nextEntity && currentSegment === nextSegment) return;
+  setHighlightedEntity(nextEntity, nextSegment);
+}
+
+function setHighlightedEntity(entityKey = "", segmentKey = "") {
+  const nextEntity = String(entityKey || "");
+  const nextSegment = String(segmentKey || "");
+  if (highlightedEntityKey === nextEntity && highlightedSegmentKey === nextSegment) return;
+  highlightedEntityKey = nextEntity;
+  highlightedSegmentKey = nextSegment;
+  applyDOMHighlight();
+  applyMapHighlight();
+}
+
+function applyDOMHighlight() {
+  const targets = document.querySelectorAll("[data-entity-key], [data-segment-key]");
+  const hasHighlight = Boolean(highlightedEntityKey || highlightedSegmentKey);
+  targets.forEach((element) => {
+    const entityKey = element.dataset.entityKey || "";
+    const segmentKey = element.dataset.segmentKey || "";
+    const active = (highlightedEntityKey && entityKey === highlightedEntityKey)
+      || (highlightedSegmentKey && segmentKey === highlightedSegmentKey);
+    element.classList.toggle("highlight-active", Boolean(active));
+    element.classList.toggle("highlight-dim", hasHighlight && !active);
+  });
+}
+
+function registerMapLayer(layer, {
+  entityKeys = [],
+  segmentKeys = [],
+  baseStyle = null,
+  enableHover = true,
+} = {}) {
+  if (!layer) return;
+  const normalizedEntity = entityKeys.filter(Boolean);
+  const normalizedSegment = segmentKeys.filter(Boolean);
+  mapHighlightEntries.push({
+    layer,
+    entityKeys: new Set(normalizedEntity),
+    segmentKeys: new Set(normalizedSegment),
+    baseStyle,
+  });
+
+  if (enableHover && (normalizedEntity.length || normalizedSegment.length) && typeof layer.on === "function") {
+    layer.on("mouseover", () => {
+      setHighlightedEntity(normalizedEntity[0] || "", normalizedSegment[0] || "");
+    });
+    layer.on("mouseout", () => {
+      setHighlightedEntity("", "");
+    });
+  }
+}
+
+function applyMapHighlight() {
+  const hasHighlight = Boolean(highlightedEntityKey || highlightedSegmentKey);
+  mapHighlightEntries.forEach((entry) => {
+    const isActive = (highlightedEntityKey && entry.entityKeys.has(highlightedEntityKey))
+      || (highlightedSegmentKey && entry.segmentKeys.has(highlightedSegmentKey));
+
+    if (typeof entry.layer.setStyle === "function" && entry.baseStyle) {
+      if (!hasHighlight) {
+        entry.layer.setStyle(entry.baseStyle);
+      } else if (isActive) {
+        const activeStyle = { ...entry.baseStyle };
+        if (Number.isFinite(activeStyle.weight)) activeStyle.weight += 1.8;
+        if (Number.isFinite(activeStyle.radius)) activeStyle.radius += 2;
+        if (Number.isFinite(activeStyle.opacity)) activeStyle.opacity = Math.min(1, activeStyle.opacity + 0.2);
+        if (Number.isFinite(activeStyle.fillOpacity)) activeStyle.fillOpacity = Math.min(1, activeStyle.fillOpacity + 0.2);
+        entry.layer.setStyle(activeStyle);
+        if (typeof entry.layer.bringToFront === "function") entry.layer.bringToFront();
+      } else {
+        const dimStyle = { ...entry.baseStyle };
+        if (Number.isFinite(dimStyle.weight)) dimStyle.weight = Math.max(1, dimStyle.weight * 0.7);
+        if (Number.isFinite(dimStyle.opacity)) dimStyle.opacity = Math.max(0.12, dimStyle.opacity * 0.25);
+        if (Number.isFinite(dimStyle.fillOpacity)) dimStyle.fillOpacity = Math.max(0.12, dimStyle.fillOpacity * 0.25);
+        entry.layer.setStyle(dimStyle);
+      }
+    }
+
+    const layerElement = typeof entry.layer.getElement === "function" ? entry.layer.getElement() : null;
+    if (layerElement) {
+      layerElement.classList.toggle("map-highlight-active", hasHighlight && Boolean(isActive));
+      layerElement.classList.toggle("map-highlight-dim", hasHighlight && !isActive);
+    }
+  });
+}
+
 function renderMap() {
   layers.hardPoints.clearLayers();
   layers.routeNodes.clearLayers();
   layers.plannedStops.clearLayers();
+  layers.softPois.clearLayers();
   layers.itineraryPath.clearLayers();
   layers.routes.clearLayers();
   layers.events.clearLayers();
   layers.unified.clearLayers();
   layers.llm.clearLayers();
+  mapHighlightEntries = [];
 
   const mapElements = [];
   const sorted = getSortedHardPoints();
@@ -3662,32 +3784,55 @@ function renderMap() {
     })
       .bindPopup(`<strong>${htmlEscape(point.title)}</strong><br>${htmlEscape(point.locationLabel || point.city || "")}<br>Hard point #${index + 1}`);
     marker.addTo(layers.hardPoints);
+    registerMapLayer(marker, { entityKeys: [point.id], enableHover: true });
     mapElements.push(marker);
   });
 
   const activeRouteNodes = getSortedActiveRouteNodes();
   activeRouteNodes.forEach((node) => {
     if (!Number.isFinite(node.lat) || !Number.isFinite(node.lng)) return;
-    const marker = L.circleMarker([node.lat, node.lng], {
+    const style = {
       radius: 7,
       color: "#18667f",
       fillColor: "#3aa0bf",
       fillOpacity: 0.85,
-    }).bindPopup(`<strong>${htmlEscape(node.title)}</strong><br>Route node (${htmlEscape(node.routeSetName || "set")})`);
+    };
+    const marker = L.circleMarker([node.lat, node.lng], style)
+      .bindPopup(`<strong>${htmlEscape(node.title)}</strong><br>Route node (${htmlEscape(node.routeSetName || "set")})`);
     marker.addTo(layers.routeNodes);
+    registerMapLayer(marker, { entityKeys: [node.id], baseStyle: style, enableHover: true });
     mapElements.push(marker);
   });
 
   const plannedStops = getSortedPlannedStops();
   plannedStops.forEach((stop) => {
     if (!Number.isFinite(stop.lat) || !Number.isFinite(stop.lng)) return;
-    const marker = L.circleMarker([stop.lat, stop.lng], {
+    const style = {
       radius: 6,
       color: "#7555c8",
       fillColor: "#9a7cf3",
       fillOpacity: 0.8,
-    }).bindPopup(`<strong>${htmlEscape(stop.title)}</strong><br>Interleaved ${htmlEscape(stop.sourceKind || "stop")}`);
+    };
+    const marker = L.circleMarker([stop.lat, stop.lng], style)
+      .bindPopup(`<strong>${htmlEscape(stop.title)}</strong><br>Interleaved ${htmlEscape(stop.sourceKind || "stop")}`);
     marker.addTo(layers.plannedStops);
+    registerMapLayer(marker, { entityKeys: [stop.id], baseStyle: style, enableHover: true });
+    mapElements.push(marker);
+  });
+
+  state.softPois.forEach((poi) => {
+    if (!Number.isFinite(poi.lat) || !Number.isFinite(poi.lng)) return;
+    const style = {
+      radius: 5,
+      color: "#6f4bb8",
+      fillColor: "#b197f5",
+      fillOpacity: 0.78,
+      opacity: 0.88,
+    };
+    const marker = L.circleMarker([poi.lat, poi.lng], style)
+      .bindPopup(`<strong>${htmlEscape(poi.title)}</strong><br>Tentative POI`);
+    marker.addTo(layers.softPois);
+    registerMapLayer(marker, { entityKeys: [poi.id], baseStyle: style, enableHover: true });
     mapElements.push(marker);
   });
 
@@ -3708,6 +3853,17 @@ function renderMap() {
         dashArray: transport.dashArray,
       }).bindPopup(`${transport.icon} ${transport.label}: ${htmlEscape(from.title)} -> ${htmlEscape(to.title)}`);
       line.addTo(layers.itineraryPath);
+      registerMapLayer(line, {
+        entityKeys: [from.id, to.id],
+        segmentKeys: [buildSegmentKey(from.id, to.id)],
+        baseStyle: {
+          color: transport.color,
+          weight: transport.weight,
+          opacity: 0.86,
+          dashArray: transport.dashArray,
+        },
+        enableHover: true,
+      });
       mapElements.push(line);
 
       const mid = getPolylineMidpoint(segmentCoords);
@@ -3749,48 +3905,76 @@ function renderMap() {
 
   state.lastEvents.forEach((event) => {
     if (!Number.isFinite(event.lat) || !Number.isFinite(event.lng)) return;
-    const circle = L.circleMarker([event.lat, event.lng], {
+    const style = {
       radius: 6,
       color: "#f27f0c",
       fillColor: "#f39f47",
       fillOpacity: 0.8,
-    }).bindPopup(`<strong>${htmlEscape(event.title)}</strong><br>${htmlEscape(event.date)} | ${htmlEscape(event.category)}`);
+    };
+    const circle = L.circleMarker([event.lat, event.lng], style)
+      .bindPopup(`<strong>${htmlEscape(event.title)}</strong><br>${htmlEscape(event.date)} | ${htmlEscape(event.category)}`);
     circle.addTo(layers.events);
+    registerMapLayer(circle, { entityKeys: [event.id], baseStyle: style, enableHover: true });
     mapElements.push(circle);
   });
 
   (state.lastUnifiedSearch?.routeNodes || []).forEach((item) => {
     if (!Number.isFinite(item.lat) || !Number.isFinite(item.lng)) return;
-    const marker = L.circleMarker([item.lat, item.lng], {
+    const style = {
       radius: 5,
       color: "#0f7f95",
       fillColor: "#4cb5ca",
       fillOpacity: 0.75,
-    }).bindPopup(`<strong>${htmlEscape(item.title)}</strong><br>Combined route-level candidate`);
+    };
+    const marker = L.circleMarker([item.lat, item.lng], style)
+      .bindPopup(`<strong>${htmlEscape(item.title)}</strong><br>Combined route-level candidate`);
     marker.addTo(layers.unified);
+    registerMapLayer(marker, { entityKeys: [item.id], baseStyle: style, enableHover: true });
     mapElements.push(marker);
   });
   (state.lastUnifiedSearch?.detailStops || []).forEach((item) => {
     if (!Number.isFinite(item.lat) || !Number.isFinite(item.lng)) return;
-    const marker = L.circleMarker([item.lat, item.lng], {
+    const style = {
       radius: 4,
       color: "#99570d",
       fillColor: "#f09a35",
       fillOpacity: 0.75,
-    }).bindPopup(`<strong>${htmlEscape(item.title)}</strong><br>Combined detail candidate`);
+    };
+    const marker = L.circleMarker([item.lat, item.lng], style)
+      .bindPopup(`<strong>${htmlEscape(item.title)}</strong><br>Combined detail candidate`);
     marker.addTo(layers.unified);
+    registerMapLayer(marker, { entityKeys: [item.id], baseStyle: style, enableHover: true });
     mapElements.push(marker);
   });
 
   state.lastLlmResults.forEach((item) => {
     if (!Number.isFinite(item.lat) || !Number.isFinite(item.lng)) return;
-    const marker = L.circleMarker([item.lat, item.lng], {
+    const style = {
       radius: 5,
       color: "#0d8a6b",
       fillColor: "#22b78f",
       fillOpacity: 0.85,
-    }).bindPopup(`<strong>${htmlEscape(item.title)}</strong><br>LLM ${htmlEscape(item.kind)}`);
+    };
+    const marker = L.circleMarker([item.lat, item.lng], style)
+      .bindPopup(`<strong>${htmlEscape(item.title)}</strong><br>LLM ${htmlEscape(item.kind)}`);
     marker.addTo(layers.llm);
+    registerMapLayer(marker, { entityKeys: [item.id], baseStyle: style, enableHover: true });
+    mapElements.push(marker);
+  });
+
+  state.lastPlaces.forEach((item) => {
+    if (!Number.isFinite(item.lat) || !Number.isFinite(item.lng)) return;
+    const style = {
+      radius: 4,
+      color: "#2d62af",
+      fillColor: "#5a8fdb",
+      fillOpacity: 0.72,
+      opacity: 0.86,
+    };
+    const marker = L.circleMarker([item.lat, item.lng], style)
+      .bindPopup(`<strong>${htmlEscape(item.title)}</strong><br>Main/trip candidate`);
+    marker.addTo(layers.unified);
+    registerMapLayer(marker, { entityKeys: [item.id], baseStyle: style, enableHover: true });
     mapElements.push(marker);
   });
 
@@ -3798,6 +3982,7 @@ function renderMap() {
     const group = L.featureGroup(mapElements);
     map.fitBounds(group.getBounds().pad(0.15), { maxZoom: 13 });
   }
+  applyMapHighlight();
 }
 
 async function geocodeLocation(query) {
