@@ -31,6 +31,7 @@ let map;
 let layers;
 let state = loadState();
 const interactionController = createHighlightController();
+const SIDEBAR_COLLAPSE_STORAGE_KEY = "mindtrip_sidebar_collapse_v1";
 
 function createDefaultState() {
   return {
@@ -377,6 +378,67 @@ function renderAll() {
   renderExperienceVisuals();
   renderMap();
   applyDOMHighlight();
+}
+
+function loadSidebarCollapseState() {
+  try {
+    const raw = localStorage.getItem(SIDEBAR_COLLAPSE_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveSidebarCollapseState(stateMap) {
+  localStorage.setItem(SIDEBAR_COLLAPSE_STORAGE_KEY, JSON.stringify(stateMap || {}));
+}
+
+function setupSidebarCollapsibles() {
+  const cards = Array.from(document.querySelectorAll(".sidebar .card"));
+  if (!cards.length) return;
+  const collapseState = loadSidebarCollapseState();
+
+  cards.forEach((card, index) => {
+    if (card.dataset.collapsibleReady === "true") return;
+    const heading = card.querySelector("h2");
+    if (!heading || heading.parentElement !== card) return;
+    const cardKey = `section-${heading.textContent.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")}`;
+
+    const row = document.createElement("div");
+    row.className = "card-title-row";
+    card.insertBefore(row, heading);
+    row.appendChild(heading);
+
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "card-collapse-btn";
+    row.appendChild(toggle);
+
+    const defaultCollapsed = index >= 3;
+    const initialCollapsed = typeof collapseState[cardKey] === "boolean"
+      ? collapseState[cardKey]
+      : defaultCollapsed;
+
+    const applyCollapsed = (collapsed) => {
+      card.classList.toggle("is-collapsed", collapsed);
+      card.classList.add("collapsible-card");
+      toggle.textContent = collapsed ? "Expand" : "Collapse";
+      toggle.setAttribute("aria-expanded", collapsed ? "false" : "true");
+    };
+
+    applyCollapsed(initialCollapsed);
+
+    toggle.addEventListener("click", () => {
+      const nextCollapsed = !card.classList.contains("is-collapsed");
+      collapseState[cardKey] = nextCollapsed;
+      saveSidebarCollapseState(collapseState);
+      applyCollapsed(nextCollapsed);
+    });
+
+    card.dataset.collapsibleReady = "true";
+  });
 }
 
 function handleSaveProfile(event) {
@@ -4228,6 +4290,7 @@ function setDefaultEventDate() {
 function init() {
   bindElements();
   initMap();
+  setupSidebarCollapsibles();
   bindEvents();
   hydrateProfileForm();
   hydrateTripContextForm();

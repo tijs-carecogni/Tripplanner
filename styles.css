@@ -67,6 +67,34 @@ body {
   font-size: 1.1rem;
 }
 
+.card-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.card-title-row h2 {
+  margin: 0;
+}
+
+.card-collapse-btn {
+  padding: 0.24rem 0.46rem;
+  font-size: 0.72rem;
+  border-radius: 999px;
+}
+
+.sidebar .collapsible-card > :not(.card-title-row):not(script) {
+  transition: opacity 0.16s ease, max-height 0.2s ease, margin 0.16s ease;
+}
+
+.sidebar .collapsible-card.is-collapsed > :not(.card-title-row):not(script) {
+  opacity: 0;
+  max-height: 0;
+  overflow: hidden;
+  margin: 0;
+}
+
 .hint {
   font-size: 0.88rem;
   color: #4f6382;
@@ -280,6 +308,10 @@ button:hover {
   transform: translateY(-1px);
   opacity: 1 !important;
   filter: saturate(1.12);
+}
+
+.highlight-pinned {
+  box-shadow: 0 0 0 2px rgba(62, 110, 199, 0.26), 0 0 0 4px rgba(62, 110, 199, 0.11);
 }
 
 .highlight-dim {

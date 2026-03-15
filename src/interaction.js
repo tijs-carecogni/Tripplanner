@@ -33,19 +33,23 @@ export function createHighlightController() {
   let highlightedEntityKey = "";
   let highlightedSegmentKey = "";
   let highlightedEntityLinkKey = "";
+  let pinnedHighlight = null;
   let boundRoot = null;
 
   const onPointerOver = (event) => {
+    if (pinnedHighlight) return;
     const target = getInteractiveTarget(event.target, interactiveSelector);
     if (!target) return;
     setHighlightedEntity(
       target.dataset.entityKey || "",
       target.dataset.segmentKey || "",
-      target.dataset.entityLink || ""
+      target.dataset.entityLink || "",
+      { source: "hover" }
     );
   };
 
   const onPointerOut = (event) => {
+    if (pinnedHighlight) return;
     const current = getInteractiveTarget(event.target, interactiveSelector);
     if (!current) return;
     const related = event.relatedTarget;
@@ -58,7 +62,43 @@ export function createHighlightController() {
     const currentSegment = current.dataset.segmentKey || "";
     const currentLink = current.dataset.entityLink || "";
     if (currentEntity === nextEntity && currentSegment === nextSegment && currentLink === nextLink) return;
-    setHighlightedEntity(nextEntity, nextSegment, nextLink);
+    setHighlightedEntity(nextEntity, nextSegment, nextLink, { source: "hover" });
+  };
+
+  const onClick = (event) => {
+    const actionButton = event.target?.closest?.("button[data-action]");
+    if (actionButton) return;
+
+    const target = getInteractiveTarget(event.target, interactiveSelector);
+    if (!target) {
+      if (pinnedHighlight) {
+        clearPinned();
+      }
+      return;
+    }
+
+    const nextEntity = String(target.dataset.entityKey || "");
+    const nextSegment = String(target.dataset.segmentKey || "");
+    const nextLink = String(target.dataset.entityLink || "");
+    const isSameAsPinned = Boolean(
+      pinnedHighlight
+      && pinnedHighlight.entityKey === nextEntity
+      && pinnedHighlight.segmentKey === nextSegment
+      && pinnedHighlight.linkKey === nextLink
+    );
+    if (isSameAsPinned) {
+      clearPinned();
+      return;
+    }
+
+    pinnedHighlight = { entityKey: nextEntity, segmentKey: nextSegment, linkKey: nextLink };
+    setHighlightedEntity(nextEntity, nextSegment, nextLink, { source: "pin" });
+  };
+
+  const onKeyDown = (event) => {
+    if (event.key !== "Escape") return;
+    if (!pinnedHighlight) return;
+    clearPinned();
   };
 
   function bindRoot(root = document.body) {
@@ -67,13 +107,19 @@ export function createHighlightController() {
     if (boundRoot) {
       boundRoot.removeEventListener("pointerover", onPointerOver);
       boundRoot.removeEventListener("pointerout", onPointerOut);
+      boundRoot.removeEventListener("click", onClick);
+      boundRoot.removeEventListener("keydown", onKeyDown);
     }
     boundRoot = root;
     boundRoot.addEventListener("pointerover", onPointerOver);
     boundRoot.addEventListener("pointerout", onPointerOut);
+    boundRoot.addEventListener("click", onClick);
+    boundRoot.addEventListener("keydown", onKeyDown);
   }
 
-  function setHighlightedEntity(entityKey = "", segmentKey = "", linkKey = "") {
+  function setHighlightedEntity(entityKey = "", segmentKey = "", linkKey = "", options = {}) {
+    const source = options.source || "api";
+    if (source === "hover" && pinnedHighlight) return;
     const nextEntity = String(entityKey || "");
     const nextSegment = String(segmentKey || "");
     const nextLink = String(linkKey || "");
@@ -89,6 +135,11 @@ export function createHighlightController() {
     applyMapHighlight();
   }
 
+  function clearPinned() {
+    pinnedHighlight = null;
+    setHighlightedEntity("", "", "", { source: "pin" });
+  }
+
   function applyDOMHighlight(root = document) {
     if (!root || typeof root.querySelectorAll !== "function") return;
     const targets = root.querySelectorAll(interactiveSelector);
@@ -102,6 +153,7 @@ export function createHighlightController() {
         || (highlightedEntityLinkKey && entityLink === highlightedEntityLinkKey);
       element.classList.toggle("highlight-active", Boolean(active));
       element.classList.toggle("highlight-dim", hasHighlight && !active);
+      element.classList.toggle("highlight-pinned", Boolean(active && pinnedHighlight));
     });
   }
 
@@ -127,10 +179,27 @@ export function createHighlightController() {
 
     if (enableHover && (normalizedEntity.length || normalizedSegment.length || normalizedLinks.length) && typeof layer.on === "function") {
       layer.on("mouseover", () => {
-        setHighlightedEntity(normalizedEntity[0] || "", normalizedSegment[0] || "", normalizedLinks[0] || "");
+        setHighlightedEntity(normalizedEntity[0] || "", normalizedSegment[0] || "", normalizedLinks[0] || "", { source: "hover" });
       });
       layer.on("mouseout", () => {
-        setHighlightedEntity("", "", "");
+        setHighlightedEntity("", "", "", { source: "hover" });
+      });
+      layer.on("click", () => {
+        const nextEntity = normalizedEntity[0] || "";
+        const nextSegment = normalizedSegment[0] || "";
+        const nextLink = normalizedLinks[0] || "";
+        const isSameAsPinned = Boolean(
+          pinnedHighlight
+          && pinnedHighlight.entityKey === nextEntity
+          && pinnedHighlight.segmentKey === nextSegment
+          && pinnedHighlight.linkKey === nextLink
+        );
+        if (isSameAsPinned) {
+          clearPinned();
+          return;
+        }
+        pinnedHighlight = { entityKey: nextEntity, segmentKey: nextSegment, linkKey: nextLink };
+        setHighlightedEntity(nextEntity, nextSegment, nextLink, { source: "pin" });
       });
     }
   }
@@ -177,6 +246,7 @@ export function createHighlightController() {
   return {
     bindRoot,
     setHighlightedEntity,
+    clearPinned,
     applyDOMHighlight,
     registerMapLayer,
     applyMapHighlight,
