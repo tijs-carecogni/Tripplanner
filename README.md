@@ -86,6 +86,7 @@ A lightweight MindTrip-like travel planner focused on:
   - trip context
   - hard points
 - Supports no-planning hard-point blocks (e.g., overnight village stays where planner should not fill activities).
+- Learns trip ideas from the user’s initial/early conversation messages and stores them in trip context.
 
 ### 10) Route Comparison (Google Maps-style concept)
 - Compare multiple route profiles: driving, cycling, walking.

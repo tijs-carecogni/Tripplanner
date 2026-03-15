@@ -68,7 +68,7 @@
           </label>
           <label>
             Primary destination / area
-            <input id="tripPrimaryDestination" type="text" placeholder="Japan: Tokyo, Kyoto, Osaka">
+            <input id="tripPrimaryDestination" type="text" placeholder="Country + key regions/cities">
           </label>
           <label>
             Must include (comma separated)
@@ -126,6 +126,10 @@
           <button id="generateOutlineBtn" type="button">Generate rough outline first</button>
           <button id="suggestFillStrategiesBtn" type="button">Suggest ways to fill gaps</button>
           <button id="showUnderstandingBtn" type="button">Show understanding snapshot</button>
+        </div>
+        <div class="stack inline-two">
+          <button id="workflowNextBtn" type="button">Run recommended next step</button>
+          <div id="workflowGuide" class="memory-summary"></div>
         </div>
         <div id="conversationTranscript" class="conversation"></div>
         <div id="conversationInsights" class="memory-summary"></div>

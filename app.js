@@ -44,6 +44,7 @@ function createDefaultState() {
       avoid: [],
       styleNotes: "",
       likedExamples: [],
+      inferredIdeas: [],
     },
     conversation: {
       mode: "main-planning",
@@ -98,6 +99,7 @@ function loadState() {
         ...defaults.tripContext,
         ...(parsed.tripContext || {}),
         likedExamples: Array.isArray(parsed?.tripContext?.likedExamples) ? parsed.tripContext.likedExamples : [],
+        inferredIdeas: Array.isArray(parsed?.tripContext?.inferredIdeas) ? parsed.tripContext.inferredIdeas : [],
       },
       softPois: Array.isArray(parsed.softPois) ? parsed.softPois : [],
       conversation: {
@@ -384,6 +386,7 @@ function handleSaveTripContext(event) {
     avoid: parseTags(els.tripAvoid.value),
     styleNotes: els.tripStyleNotes.value.trim(),
     likedExamples,
+    inferredIdeas: state.tripContext.inferredIdeas || [],
   };
   applyLikedExamplesToMemory(likedExamples);
   saveState();
@@ -401,6 +404,7 @@ function renderTripContextSummary() {
     <div><strong>Must include:</strong> ${htmlEscape((state.tripContext.mustInclude || []).join(", ") || "none")}</div>
     <div><strong>Avoid:</strong> ${htmlEscape((state.tripContext.avoid || []).join(", ") || "none")}</div>
     <div><strong>Loved examples:</strong> ${htmlEscape((state.tripContext.likedExamples || []).slice(0, 3).join(" | ") || "none")}</div>
+    <div><strong>Inferred trip ideas:</strong> ${htmlEscape((state.tripContext.inferredIdeas || []).slice(0, 4).join(" | ") || "none yet")}</div>
     <div><strong>Hard points:</strong> ${hardCount} | <strong>LLM-generated parts:</strong> ${generatedCount}</div>
     <div><strong>Fill windows detected:</strong> ${windows.length}</div>
   `;
@@ -417,6 +421,51 @@ function applyLikedExamplesToMemory(examples) {
   const unique = [...new Set(extractedTags.map((tag) => normalizePreferenceTag(tag)).filter(Boolean))];
   if (!unique.length) return;
   applyConversationPreference(unique, 1, "liked-examples");
+}
+
+function storeTripIdeasFromMessage(text, { onlyIfInitial = false } = {}) {
+  const ideas = extractTripIdeasFromMessage(text);
+  if (!ideas.length) return false;
+
+  const existing = state.tripContext.inferredIdeas || [];
+  if (onlyIfInitial && existing.length) {
+    return false;
+  }
+
+  const merged = [...new Set([...existing, ...ideas])].slice(0, 30);
+  if (merged.length === existing.length) {
+    return false;
+  }
+
+  state.tripContext.inferredIdeas = merged;
+  applyLikedExamplesToMemory(ideas);
+  return true;
+}
+
+function extractTripIdeasFromMessage(text) {
+  const raw = String(text || "");
+  if (!raw.trim()) return [];
+
+  const markerMatch = raw.match(/(?:things i like(?: would be)?|for example|examples?)[^:]*:\s*([\s\S]+)/i);
+  const source = markerMatch ? markerMatch[1] : raw;
+  const normalized = source.replace(/\band\b/gi, ",");
+  const chunks = normalized
+    .split(/,|;|\n/)
+    .map((chunk) => chunk.trim().replace(/^[-*]\s*/, ""))
+    .filter((chunk) => chunk.length >= 4);
+
+  const blacklist = new Set([
+    "trip context",
+    "user context",
+    "hard points",
+    "no planning",
+    "show context",
+    "rough outline",
+  ]);
+
+  return [...new Set(chunks)]
+    .filter((chunk) => !blacklist.has(chunk.toLowerCase()))
+    .slice(0, 12);
 }
 
 function ensureConversationInitialized() {
@@ -617,9 +666,11 @@ async function handleConversationSubmit(event) {
   const text = els.conversationInput.value.trim();
   if (!text) return;
 
+  const hadUserMessages = state.conversation.messages.some((message) => message.role === "user");
   pushConversationMessage("user", text);
   els.conversationForm.reset();
   applyDirectPreferenceFromMessage(text);
+  storeTripIdeasFromMessage(text, { onlyIfInitial: !hadUserMessages });
   const quickHandled = await tryHandleQuickConversationCommands(text);
   if (quickHandled) {
     saveState();
@@ -808,7 +859,7 @@ function getUnderstandingSnapshotText({ user, trip, hard }) {
     parts.push(`User context -> name: ${state.profile.name || "n/a"}, budget: ${state.profile.budget}, pace: ${state.profile.pace}, interests: ${(state.profile.interests || []).join(", ") || "n/a"}, learned likes: ${likes.join(", ") || "n/a"}, learned dislikes: ${dislikes.join(", ") || "n/a"}.`);
   }
   if (trip) {
-    parts.push(`Trip context -> ${state.tripContext.startDate || "?"} to ${state.tripContext.endDate || "?"}, destination: ${state.tripContext.primaryDestination || "n/a"}, must include: ${(state.tripContext.mustInclude || []).join(", ") || "n/a"}, avoid: ${(state.tripContext.avoid || []).join(", ") || "n/a"}, liked examples: ${(state.tripContext.likedExamples || []).slice(0, 4).join(" | ") || "n/a"}.`);
+    parts.push(`Trip context -> ${state.tripContext.startDate || "?"} to ${state.tripContext.endDate || "?"}, destination: ${state.tripContext.primaryDestination || "n/a"}, must include: ${(state.tripContext.mustInclude || []).join(", ") || "n/a"}, avoid: ${(state.tripContext.avoid || []).join(", ") || "n/a"}, liked examples: ${(state.tripContext.likedExamples || []).slice(0, 4).join(" | ") || "n/a"}, inferred ideas: ${(state.tripContext.inferredIdeas || []).slice(0, 5).join(" | ") || "n/a"}.`);
   }
   if (hard) {
     const hardPoints = getSortedHardPoints().map((point) => `${point.title} (${formatDateTime(point.start)})`).slice(0, 12);
@@ -2512,6 +2563,7 @@ function buildUserTripContextSnapshot() {
       strategies: state.outlineDraft.strategies.slice(0, 6),
       updatedAt: state.outlineDraft.updatedAt,
     },
+    inferredTripIdeas: state.tripContext.inferredIdeas || [],
     memoryTopTags: Object.entries(state.memory.tagScores).sort((a, b) => b[1] - a[1]).slice(0, 8),
     memoryAvoidTags: Object.entries(state.memory.tagScores).sort((a, b) => a[1] - b[1]).slice(0, 6),
     conversationMode: state.conversation.mode,
