@@ -119,7 +119,9 @@ Then open:
 ## Files
 
 - `index.html` - app layout and UI sections
+- `theme.css` - design tokens (palette, typography, spacing, motion, elevation, light/dark)
 - `styles.css` - styling and responsive layout
+- `THEMING_PLAN.md` - consistent styling blueprint and rollout checklist
 - `app.js` - app orchestration, state transitions, UI handlers, planner workflows
 - `src/constants.js` - static configuration and seeded travel data catalogs
 - `src/utils.js` - shared utility helpers (IDs, tags, date/time, distance, formatting)
