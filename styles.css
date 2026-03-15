@@ -259,6 +259,7 @@ button:hover {
 
 .list-item,
 .result-card,
+.suggestion-card,
 .itinerary-stop,
 .route-node-chip,
 .route-segment-chip,
@@ -267,7 +268,8 @@ button:hover {
 }
 
 [data-entity-key],
-[data-segment-key] {
+[data-segment-key],
+[data-entity-link] {
   cursor: pointer;
 }
 

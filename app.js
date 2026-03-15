@@ -29,6 +29,7 @@ let state = loadState();
 let mapHighlightEntries = [];
 let highlightedEntityKey = "";
 let highlightedSegmentKey = "";
+let highlightedEntityLinkKey = "";
 
 function createDefaultState() {
   return {
@@ -279,6 +280,7 @@ function initMap() {
     routeNodes: L.layerGroup().addTo(map),
     plannedStops: L.layerGroup().addTo(map),
     softPois: L.layerGroup().addTo(map),
+    suggestions: L.layerGroup().addTo(map),
     itineraryPath: L.layerGroup().addTo(map),
     routes: L.layerGroup().addTo(map),
     events: L.layerGroup().addTo(map),
@@ -373,6 +375,29 @@ function renderAll() {
   renderExperienceVisuals();
   renderMap();
   applyDOMHighlight();
+}
+
+function slugifyEntityToken(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+}
+
+function buildEntityLinkKey(itemOrTitle, cityValue = "") {
+  if (itemOrTitle && typeof itemOrTitle === "object") {
+    const title = itemOrTitle.title || itemOrTitle.locationLabel || itemOrTitle.venue || "";
+    const city = itemOrTitle.city || cityValue || "";
+    const titleSlug = slugifyEntityToken(title);
+    const citySlug = slugifyEntityToken(city);
+    if (!titleSlug && !citySlug) return "";
+    return `link:${titleSlug}${citySlug ? `@${citySlug}` : ""}`;
+  }
+  const titleSlug = slugifyEntityToken(itemOrTitle);
+  const citySlug = slugifyEntityToken(cityValue);
+  if (!titleSlug && !citySlug) return "";
+  return `link:${titleSlug}${citySlug ? `@${citySlug}` : ""}`;
 }
 
 function handleSaveProfile(event) {
@@ -490,6 +515,8 @@ function ensureConversationInitialized() {
   if (state.conversation.messages.length) return;
   const seedOptions = getPersonalizedSuggestions(3).map((item) => ({
     id: generateId("conv-opt"),
+    entityKey: item.id,
+    linkKey: buildEntityLinkKey(item),
     title: item.title,
     kind: item.type || "activity",
     city: item.city,
@@ -516,6 +543,8 @@ function pushConversationMessage(role, text, options = []) {
       ...option,
       id: option.id || generateId("conv-opt"),
       tags: Array.isArray(option.tags) ? option.tags : [],
+      entityKey: String(option.entityKey || ""),
+      linkKey: String(option.linkKey || buildEntityLinkKey(option)).trim(),
     })),
   });
   state.conversation.messages = state.conversation.messages.slice(-80);
@@ -532,7 +561,9 @@ function renderConversation() {
       const optionsHtml = options.length
         ? `<div class="results">
             ${options.map((option) => `
-              <div class="result-card">
+              <div class="result-card"
+                ${option.entityKey ? `data-entity-key="${htmlEscape(option.entityKey)}"` : ""}
+                ${option.linkKey ? `data-entity-link="${htmlEscape(option.linkKey)}"` : ""}>
                 <strong>${htmlEscape(option.title)}</strong>
                 <div class="meta">${htmlEscape(option.kind || "option")} | ${htmlEscape(option.city || "city not set")}</div>
                 <div class="meta">${htmlEscape(option.reason || option.description || "")}</div>
@@ -610,7 +641,7 @@ function renderSoftPois() {
   }
   els.softPoiList.innerHTML = state.softPois
     .map((poi) => `
-      <li class="list-item" data-entity-key="${htmlEscape(poi.id)}">
+      <li class="list-item" data-entity-key="${htmlEscape(poi.id)}" data-entity-link="${htmlEscape(buildEntityLinkKey(poi))}">
         <h4>${htmlEscape(poi.title)}</h4>
         <div class="meta">${htmlEscape(poi.kind)} | ${htmlEscape(poi.city || "Unknown city")}</div>
         ${poi.notes ? `<div class="meta">${htmlEscape(poi.notes)}</div>` : ""}
@@ -1009,6 +1040,7 @@ async function callLlmConversationReply(userText) {
         context: buildUserTripContextSnapshot(),
         recentMessages: recent,
         candidateOptions: getPersonalizedSuggestions(8).map((item) => ({
+          id: item.id,
           title: item.title,
           city: item.city,
           tags: item.tags,
@@ -1044,6 +1076,8 @@ function heuristicConversationReply(userText) {
     .slice(0, 4)
     .map((item) => ({
       title: item.title,
+      entityKey: item.id,
+      linkKey: buildEntityLinkKey(item),
       kind: item.type || "activity",
       city: item.city,
       reason: item.description || "Suggested from your profile and memory.",
@@ -1073,12 +1107,14 @@ function normalizeConversationOptions(rawOptions) {
     .slice(0, 6)
     .map((item) => ({
       id: generateId("conv-opt"),
+      entityKey: String(item.entityKey || item.id || "").trim(),
       title: String(item.title || "").trim(),
       kind: String(item.kind || item.type || "activity").trim().toLowerCase(),
       city: String(item.city || "").trim(),
       reason: String(item.reason || item.description || "").trim(),
       tags: (Array.isArray(item.tags) ? item.tags : parseTags(item.tags || "")).map((tag) => normalizePreferenceTag(tag)),
       locationQuery: String(item.locationQuery || `${item.title || ""}${item.city ? `, ${item.city}` : ""}`).trim(),
+      linkKey: String(item.linkKey || buildEntityLinkKey(item)).trim(),
       lat: Number(item.lat),
       lng: Number(item.lng),
       startHint: String(item.startHint || "").trim(),
@@ -1400,7 +1436,7 @@ function renderHardPoints() {
       const rating = state.memory.itemRatings[point.id];
       const ratingText = rating ? `Current rating: ${rating}/5` : "Rate after booking or experience";
       return `
-      <li class="list-item" data-entity-key="${htmlEscape(point.id)}">
+      <li class="list-item" data-entity-key="${htmlEscape(point.id)}" data-entity-link="${htmlEscape(buildEntityLinkKey(point))}">
         <h4>${htmlEscape(point.title)} <small>(${htmlEscape(point.type)})</small></h4>
         <div class="meta">${formatDateTime(point.start)} ${point.end ? `-> ${formatDateTime(point.end)}` : ""}</div>
         <div class="meta">${htmlEscape(point.locationLabel || point.city || "Unknown location")}</div>
@@ -1534,7 +1570,7 @@ function renderRouteSets() {
       const nodes = Array.isArray(set.nodes) ? set.nodes : [];
       const nodeList = nodes.length
         ? nodes.map((node) => `
-            <li class="meta" data-entity-key="${htmlEscape(node.id)}">
+            <li class="meta" data-entity-key="${htmlEscape(node.id)}" data-entity-link="${htmlEscape(buildEntityLinkKey(node))}">
               ${htmlEscape(node.title)} (${formatDateTime(node.start)})
               <span class="item-actions">
                 <button type="button" data-action="focus-route-node" data-set-id="${set.id}" data-node-id="${node.id}">Map</button>
@@ -1729,7 +1765,7 @@ function renderUnifiedResults() {
   } else {
     els.unifiedRouteResults.innerHTML = routeNodes
       .map((item) => `
-        <article class="result-card" data-entity-key="${htmlEscape(item.id)}">
+        <article class="result-card" data-entity-key="${htmlEscape(item.id)}" data-entity-link="${htmlEscape(buildEntityLinkKey(item))}">
           <strong>${htmlEscape(item.title)}</strong>
           <div class="meta">${htmlEscape(item.kind || item.category || "route-node")} | ${htmlEscape(item.city || "Unknown city")}</div>
           <div class="meta">${htmlEscape(item.description || item.reason || "Route-level candidate")}</div>
@@ -1750,7 +1786,7 @@ function renderUnifiedResults() {
   }
   els.unifiedDetailResults.innerHTML = detailStops
     .map((item) => `
-      <article class="result-card" data-entity-key="${htmlEscape(item.id)}">
+      <article class="result-card" data-entity-key="${htmlEscape(item.id)}" data-entity-link="${htmlEscape(buildEntityLinkKey(item))}">
         <strong>${htmlEscape(item.title)}</strong>
         <div class="meta">${htmlEscape(item.kind || item.category || "detail")} | ${htmlEscape(item.city || "Unknown city")}</div>
         <div class="meta">${htmlEscape(item.description || item.reason || "Detail place/event candidate")}</div>
@@ -1948,7 +1984,7 @@ function renderItinerary() {
       lockLabel = "Route node (main stop)";
     }
     blocks.push(`
-      <article class="itinerary-stop" data-entity-key="${htmlEscape(point.id)}">
+      <article class="itinerary-stop" data-entity-key="${htmlEscape(point.id)}" data-entity-link="${htmlEscape(buildEntityLinkKey(point))}">
         <strong>${i + 1}. ${htmlEscape(point.title)}</strong>
         <div class="meta">${lockLabel} (${htmlEscape(point.type || point.sourceKind || "stop")})</div>
         <div class="meta">${formatDateTime(point.start)} ${point.end ? `-> ${formatDateTime(point.end)}` : ""}</div>
@@ -2034,7 +2070,7 @@ function renderSuggestions() {
       const existingRating = state.memory.itemRatings[item.id];
       const ratingText = existingRating ? `Remembered rating ${existingRating}/5` : "Not rated yet";
       return `
-      <article class="suggestion-card">
+      <article class="suggestion-card" data-entity-key="${htmlEscape(item.id)}" data-entity-link="${htmlEscape(buildEntityLinkKey(item))}">
         <h4>${htmlEscape(item.title)}</h4>
         <div class="meta">${htmlEscape(item.city)} | ${htmlEscape(item.type)} | score ${item.score.toFixed(1)}</div>
         <div class="meta">${htmlEscape(item.description || "No description")}</div>
@@ -2474,7 +2510,7 @@ function renderPlaceResults() {
 
   els.placeResults.innerHTML = state.lastPlaces
     .map((item) => `
-      <article class="result-card" data-entity-key="${htmlEscape(item.id)}">
+      <article class="result-card" data-entity-key="${htmlEscape(item.id)}" data-entity-link="${htmlEscape(buildEntityLinkKey(item))}">
         <strong>${htmlEscape(item.title)}</strong>
         <div class="meta">${htmlEscape(item.city || "Unknown city")} | ${htmlEscape(item.kind || item.category || "location")}</div>
         <div class="meta">${htmlEscape(item.description || "Suggested place/trip")}</div>
@@ -3108,7 +3144,7 @@ function renderLlmResults() {
 
   els.llmSearchResults.innerHTML = state.lastLlmResults
     .map((item) => `
-      <article class="result-card" data-entity-key="${htmlEscape(item.id)}">
+      <article class="result-card" data-entity-key="${htmlEscape(item.id)}" data-entity-link="${htmlEscape(buildEntityLinkKey(item))}">
         <strong>${htmlEscape(item.title)}</strong>
         <div class="meta">${htmlEscape(item.kind)} | ${htmlEscape(item.city || "City not set")}${item.date ? ` | ${htmlEscape(item.date)}` : ""}</div>
         <div class="meta">${htmlEscape(item.description || "LLM recommendation")}</div>
@@ -3241,7 +3277,7 @@ function renderEventResults() {
 
   els.eventResults.innerHTML = state.lastEvents
     .map((event) => `
-      <article class="result-card" data-entity-key="${htmlEscape(event.id)}">
+      <article class="result-card" data-entity-key="${htmlEscape(event.id)}" data-entity-link="${htmlEscape(buildEntityLinkKey(event))}">
         <strong>${htmlEscape(event.title)}</strong>
         <div class="meta">${htmlEscape(event.date)} | ${htmlEscape(event.city)} | ${htmlEscape(event.category)}</div>
         <div class="meta">${htmlEscape(event.venue || "Venue pending")}</div>
@@ -3482,7 +3518,7 @@ function renderRouteStripVisual() {
   }
   const parts = [];
   anchors.forEach((point, index) => {
-    parts.push(`<span class="route-node-chip" data-entity-key="${htmlEscape(point.id)}">${htmlEscape(point.city || point.title)}</span>`);
+    parts.push(`<span class="route-node-chip" data-entity-key="${htmlEscape(point.id)}" data-entity-link="${htmlEscape(buildEntityLinkKey(point))}">${htmlEscape(point.city || point.title)}</span>`);
     const next = anchors[index + 1];
     if (!next) return;
     const type = getSegmentTransportType(point, next);
@@ -3582,6 +3618,7 @@ function renderMapLegend() {
     <span class="legend-chip">🚗 road leg</span>
     <span class="legend-chip">🚶 short hop</span>
     <span class="legend-chip">📍 hard point</span>
+    <span class="legend-chip">● recommendation</span>
   `;
 }
 
@@ -3659,44 +3696,54 @@ function bindCrossHighlightInteractions() {
 }
 
 function handleGlobalPointerOver(event) {
-  const target = event.target.closest("[data-entity-key], [data-segment-key]");
+  const target = event.target.closest("[data-entity-key], [data-segment-key], [data-entity-link]");
   if (!target) return;
-  setHighlightedEntity(target.dataset.entityKey || "", target.dataset.segmentKey || "");
+  setHighlightedEntity(
+    target.dataset.entityKey || "",
+    target.dataset.segmentKey || "",
+    target.dataset.entityLink || ""
+  );
 }
 
 function handleGlobalPointerOut(event) {
-  const current = event.target.closest("[data-entity-key], [data-segment-key]");
+  const current = event.target.closest("[data-entity-key], [data-segment-key], [data-entity-link]");
   if (!current) return;
   const related = event.relatedTarget;
   const next = related && typeof related.closest === "function"
-    ? related.closest("[data-entity-key], [data-segment-key]")
+    ? related.closest("[data-entity-key], [data-segment-key], [data-entity-link]")
     : null;
   const nextEntity = next?.dataset.entityKey || "";
   const nextSegment = next?.dataset.segmentKey || "";
+  const nextLink = next?.dataset.entityLink || "";
   const currentEntity = current.dataset.entityKey || "";
   const currentSegment = current.dataset.segmentKey || "";
-  if (currentEntity === nextEntity && currentSegment === nextSegment) return;
-  setHighlightedEntity(nextEntity, nextSegment);
+  const currentLink = current.dataset.entityLink || "";
+  if (currentEntity === nextEntity && currentSegment === nextSegment && currentLink === nextLink) return;
+  setHighlightedEntity(nextEntity, nextSegment, nextLink);
 }
 
-function setHighlightedEntity(entityKey = "", segmentKey = "") {
+function setHighlightedEntity(entityKey = "", segmentKey = "", linkKey = "") {
   const nextEntity = String(entityKey || "");
   const nextSegment = String(segmentKey || "");
-  if (highlightedEntityKey === nextEntity && highlightedSegmentKey === nextSegment) return;
+  const nextLink = String(linkKey || "");
+  if (highlightedEntityKey === nextEntity && highlightedSegmentKey === nextSegment && highlightedEntityLinkKey === nextLink) return;
   highlightedEntityKey = nextEntity;
   highlightedSegmentKey = nextSegment;
+  highlightedEntityLinkKey = nextLink;
   applyDOMHighlight();
   applyMapHighlight();
 }
 
 function applyDOMHighlight() {
-  const targets = document.querySelectorAll("[data-entity-key], [data-segment-key]");
-  const hasHighlight = Boolean(highlightedEntityKey || highlightedSegmentKey);
+  const targets = document.querySelectorAll("[data-entity-key], [data-segment-key], [data-entity-link]");
+  const hasHighlight = Boolean(highlightedEntityKey || highlightedSegmentKey || highlightedEntityLinkKey);
   targets.forEach((element) => {
     const entityKey = element.dataset.entityKey || "";
     const segmentKey = element.dataset.segmentKey || "";
+    const entityLink = element.dataset.entityLink || "";
     const active = (highlightedEntityKey && entityKey === highlightedEntityKey)
-      || (highlightedSegmentKey && segmentKey === highlightedSegmentKey);
+      || (highlightedSegmentKey && segmentKey === highlightedSegmentKey)
+      || (highlightedEntityLinkKey && entityLink === highlightedEntityLinkKey);
     element.classList.toggle("highlight-active", Boolean(active));
     element.classList.toggle("highlight-dim", hasHighlight && !active);
   });
@@ -3705,34 +3752,38 @@ function applyDOMHighlight() {
 function registerMapLayer(layer, {
   entityKeys = [],
   segmentKeys = [],
+  linkKeys = [],
   baseStyle = null,
   enableHover = true,
 } = {}) {
   if (!layer) return;
   const normalizedEntity = entityKeys.filter(Boolean);
   const normalizedSegment = segmentKeys.filter(Boolean);
+  const normalizedLinks = linkKeys.filter(Boolean);
   mapHighlightEntries.push({
     layer,
     entityKeys: new Set(normalizedEntity),
     segmentKeys: new Set(normalizedSegment),
+    linkKeys: new Set(normalizedLinks),
     baseStyle,
   });
 
-  if (enableHover && (normalizedEntity.length || normalizedSegment.length) && typeof layer.on === "function") {
+  if (enableHover && (normalizedEntity.length || normalizedSegment.length || normalizedLinks.length) && typeof layer.on === "function") {
     layer.on("mouseover", () => {
-      setHighlightedEntity(normalizedEntity[0] || "", normalizedSegment[0] || "");
+      setHighlightedEntity(normalizedEntity[0] || "", normalizedSegment[0] || "", normalizedLinks[0] || "");
     });
     layer.on("mouseout", () => {
-      setHighlightedEntity("", "");
+      setHighlightedEntity("", "", "");
     });
   }
 }
 
 function applyMapHighlight() {
-  const hasHighlight = Boolean(highlightedEntityKey || highlightedSegmentKey);
+  const hasHighlight = Boolean(highlightedEntityKey || highlightedSegmentKey || highlightedEntityLinkKey);
   mapHighlightEntries.forEach((entry) => {
     const isActive = (highlightedEntityKey && entry.entityKeys.has(highlightedEntityKey))
-      || (highlightedSegmentKey && entry.segmentKeys.has(highlightedSegmentKey));
+      || (highlightedSegmentKey && entry.segmentKeys.has(highlightedSegmentKey))
+      || (highlightedEntityLinkKey && entry.linkKeys.has(highlightedEntityLinkKey));
 
     if (typeof entry.layer.setStyle === "function" && entry.baseStyle) {
       if (!hasHighlight) {
@@ -3767,6 +3818,7 @@ function renderMap() {
   layers.routeNodes.clearLayers();
   layers.plannedStops.clearLayers();
   layers.softPois.clearLayers();
+  layers.suggestions.clearLayers();
   layers.itineraryPath.clearLayers();
   layers.routes.clearLayers();
   layers.events.clearLayers();
@@ -3784,7 +3836,11 @@ function renderMap() {
     })
       .bindPopup(`<strong>${htmlEscape(point.title)}</strong><br>${htmlEscape(point.locationLabel || point.city || "")}<br>Hard point #${index + 1}`);
     marker.addTo(layers.hardPoints);
-    registerMapLayer(marker, { entityKeys: [point.id], enableHover: true });
+    registerMapLayer(marker, {
+      entityKeys: [point.id],
+      linkKeys: [buildEntityLinkKey(point)],
+      enableHover: true,
+    });
     mapElements.push(marker);
   });
 
@@ -3800,7 +3856,12 @@ function renderMap() {
     const marker = L.circleMarker([node.lat, node.lng], style)
       .bindPopup(`<strong>${htmlEscape(node.title)}</strong><br>Route node (${htmlEscape(node.routeSetName || "set")})`);
     marker.addTo(layers.routeNodes);
-    registerMapLayer(marker, { entityKeys: [node.id], baseStyle: style, enableHover: true });
+    registerMapLayer(marker, {
+      entityKeys: [node.id],
+      linkKeys: [buildEntityLinkKey(node)],
+      baseStyle: style,
+      enableHover: true,
+    });
     mapElements.push(marker);
   });
 
@@ -3816,7 +3877,12 @@ function renderMap() {
     const marker = L.circleMarker([stop.lat, stop.lng], style)
       .bindPopup(`<strong>${htmlEscape(stop.title)}</strong><br>Interleaved ${htmlEscape(stop.sourceKind || "stop")}`);
     marker.addTo(layers.plannedStops);
-    registerMapLayer(marker, { entityKeys: [stop.id], baseStyle: style, enableHover: true });
+    registerMapLayer(marker, {
+      entityKeys: [stop.id],
+      linkKeys: [buildEntityLinkKey(stop)],
+      baseStyle: style,
+      enableHover: true,
+    });
     mapElements.push(marker);
   });
 
@@ -3832,7 +3898,12 @@ function renderMap() {
     const marker = L.circleMarker([poi.lat, poi.lng], style)
       .bindPopup(`<strong>${htmlEscape(poi.title)}</strong><br>Tentative POI`);
     marker.addTo(layers.softPois);
-    registerMapLayer(marker, { entityKeys: [poi.id], baseStyle: style, enableHover: true });
+    registerMapLayer(marker, {
+      entityKeys: [poi.id],
+      linkKeys: [buildEntityLinkKey(poi)],
+      baseStyle: style,
+      enableHover: true,
+    });
     mapElements.push(marker);
   });
 
@@ -3856,6 +3927,7 @@ function renderMap() {
       registerMapLayer(line, {
         entityKeys: [from.id, to.id],
         segmentKeys: [buildSegmentKey(from.id, to.id)],
+        linkKeys: [buildEntityLinkKey(from), buildEntityLinkKey(to)],
         baseStyle: {
           color: transport.color,
           weight: transport.weight,
@@ -3914,7 +3986,12 @@ function renderMap() {
     const circle = L.circleMarker([event.lat, event.lng], style)
       .bindPopup(`<strong>${htmlEscape(event.title)}</strong><br>${htmlEscape(event.date)} | ${htmlEscape(event.category)}`);
     circle.addTo(layers.events);
-    registerMapLayer(circle, { entityKeys: [event.id], baseStyle: style, enableHover: true });
+    registerMapLayer(circle, {
+      entityKeys: [event.id],
+      linkKeys: [buildEntityLinkKey(event)],
+      baseStyle: style,
+      enableHover: true,
+    });
     mapElements.push(circle);
   });
 
@@ -3929,7 +4006,12 @@ function renderMap() {
     const marker = L.circleMarker([item.lat, item.lng], style)
       .bindPopup(`<strong>${htmlEscape(item.title)}</strong><br>Combined route-level candidate`);
     marker.addTo(layers.unified);
-    registerMapLayer(marker, { entityKeys: [item.id], baseStyle: style, enableHover: true });
+    registerMapLayer(marker, {
+      entityKeys: [item.id],
+      linkKeys: [buildEntityLinkKey(item)],
+      baseStyle: style,
+      enableHover: true,
+    });
     mapElements.push(marker);
   });
   (state.lastUnifiedSearch?.detailStops || []).forEach((item) => {
@@ -3943,7 +4025,12 @@ function renderMap() {
     const marker = L.circleMarker([item.lat, item.lng], style)
       .bindPopup(`<strong>${htmlEscape(item.title)}</strong><br>Combined detail candidate`);
     marker.addTo(layers.unified);
-    registerMapLayer(marker, { entityKeys: [item.id], baseStyle: style, enableHover: true });
+    registerMapLayer(marker, {
+      entityKeys: [item.id],
+      linkKeys: [buildEntityLinkKey(item)],
+      baseStyle: style,
+      enableHover: true,
+    });
     mapElements.push(marker);
   });
 
@@ -3958,7 +4045,12 @@ function renderMap() {
     const marker = L.circleMarker([item.lat, item.lng], style)
       .bindPopup(`<strong>${htmlEscape(item.title)}</strong><br>LLM ${htmlEscape(item.kind)}`);
     marker.addTo(layers.llm);
-    registerMapLayer(marker, { entityKeys: [item.id], baseStyle: style, enableHover: true });
+    registerMapLayer(marker, {
+      entityKeys: [item.id],
+      linkKeys: [buildEntityLinkKey(item)],
+      baseStyle: style,
+      enableHover: true,
+    });
     mapElements.push(marker);
   });
 
@@ -3974,7 +4066,34 @@ function renderMap() {
     const marker = L.circleMarker([item.lat, item.lng], style)
       .bindPopup(`<strong>${htmlEscape(item.title)}</strong><br>Main/trip candidate`);
     marker.addTo(layers.unified);
-    registerMapLayer(marker, { entityKeys: [item.id], baseStyle: style, enableHover: true });
+    registerMapLayer(marker, {
+      entityKeys: [item.id],
+      linkKeys: [buildEntityLinkKey(item)],
+      baseStyle: style,
+      enableHover: true,
+    });
+    mapElements.push(marker);
+  });
+
+  const suggestions = getPersonalizedSuggestions(12);
+  suggestions.forEach((item) => {
+    if (!Number.isFinite(item.lat) || !Number.isFinite(item.lng)) return;
+    const style = {
+      radius: 4.5,
+      color: "#55739d",
+      fillColor: "#8da7cf",
+      fillOpacity: 0.66,
+      opacity: 0.82,
+    };
+    const marker = L.circleMarker([item.lat, item.lng], style)
+      .bindPopup(`<strong>${htmlEscape(item.title)}</strong><br>Recommendation card`);
+    marker.addTo(layers.suggestions);
+    registerMapLayer(marker, {
+      entityKeys: [item.id],
+      linkKeys: [buildEntityLinkKey(item)],
+      baseStyle: style,
+      enableHover: true,
+    });
     mapElements.push(marker);
   });
 
