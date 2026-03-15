@@ -2212,6 +2212,11 @@ function scoreSuggestion(suggestion) {
   const rememberedCityScore = state.memory.cityScores[normalizedCity] || 0;
   const rated = state.memory.itemRatings[suggestion.id];
   const interestSet = new Set(state.profile.interests);
+  const settings = state.expertSettings || createDefaultState().expertSettings;
+  const mode = settings.plannerMode || "expert-balanced";
+  const eventIntensity = Math.max(0, Math.min(5, Number(settings.eventIntensity || 3)));
+  const lowerType = String(suggestion.type || "").toLowerCase();
+  const lowerTags = (suggestion.tags || []).map((tag) => String(tag).toLowerCase());
 
   let score = 40;
   score += rememberedCityScore * 2.5;
@@ -2225,6 +2230,22 @@ function scoreSuggestion(suggestion) {
 
   if (rated !== undefined) {
     score += rated <= 2 ? -20 : rated * 2;
+  }
+
+  if (mode === "exploration-heavy") {
+    if (["day-trip", "route", "outdoor", "experience"].some((token) => lowerType.includes(token))) score += 4;
+    if (lowerTags.some((tag) => ["hiking", "hike", "nature", "adventure", "trip"].includes(tag))) score += 3;
+  } else if (mode === "efficiency-heavy") {
+    if (["walking-tour", "route", "work", "museum"].some((token) => lowerType.includes(token))) score += 3;
+    if (state.tripContext.primaryDestination
+      && normalizeCity(state.tripContext.primaryDestination).includes(normalizedCity)) {
+      score += 4;
+    }
+  }
+
+  const eventWeight = eventIntensity - 2;
+  if (lowerTags.some((tag) => ["music", "nightlife", "event", "concert", "festival"].includes(tag))) {
+    score += eventWeight * 2;
   }
 
   return score;
@@ -3775,6 +3796,7 @@ function renderTripPulseVisual() {
 }
 
 function renderPossibleVisuals() {
+  const targetStops = Math.max(1, Number(state.expertSettings?.dailyStopTarget || 3));
   const strategies = (state.outlineDraft.strategies || []).length
     ? state.outlineDraft.strategies
     : generateFillStrategies(null);
@@ -3809,6 +3831,7 @@ function renderPossibleVisuals() {
           <span class="possible-score">${fitScore >= 0 ? "+" : ""}${fitScore} fit</span>
         </div>
         <div class="meta">${htmlEscape(strategy.reason || "Possible itinerary style generated from your profile.")}</div>
+        <div class="meta">Target pace: ~${targetStops} key stop${targetStops === 1 ? "" : "s"} per day</div>
         <div class="chip-list">${tags.map((tag) => `<span class="chip">${htmlEscape(tag)}</span>`).join("")}</div>
         <div class="possible-track"><span class="possible-fill" style="width:${fitPct}%"></span></div>
         <div class="possible-picks">${picks}</div>
