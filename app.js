@@ -70,6 +70,9 @@ function createDefaultState() {
     outlineDraft: {
       blocks: [],
       strategies: [],
+      generalStrategy: null,
+      blockTweaks: {},
+      focusedBlockId: "",
       updatedAt: "",
     },
     routeComparison: null,
@@ -128,6 +131,9 @@ function loadState() {
         ...(parsed.outlineDraft || {}),
         blocks: Array.isArray(parsed?.outlineDraft?.blocks) ? parsed.outlineDraft.blocks : [],
         strategies: Array.isArray(parsed?.outlineDraft?.strategies) ? parsed.outlineDraft.strategies : [],
+        blockTweaks: parsed?.outlineDraft?.blockTweaks || {},
+        generalStrategy: parsed?.outlineDraft?.generalStrategy || null,
+        focusedBlockId: parsed?.outlineDraft?.focusedBlockId || "",
       },
       llm: { ...DEFAULT_LLM_CONFIG, ...(parsed.llm || {}) },
     };
@@ -523,7 +529,9 @@ function renderConversation() {
                   <button type="button" data-action="option-feedback" data-message-id="${message.id}" data-option-id="${option.id}" data-feedback="love">Love</button>
                   <button type="button" data-action="option-feedback" data-message-id="${message.id}" data-option-id="${option.id}" data-feedback="maybe">Maybe</button>
                   <button type="button" data-action="option-feedback" data-message-id="${message.id}" data-option-id="${option.id}" data-feedback="no">No</button>
-                  ${option.kind === "strategy"
+                  ${option.kind === "outline-block"
+                    ? `<button type="button" data-action="option-dive-block" data-message-id="${message.id}" data-option-id="${option.id}">Dive into this point</button>`
+                    : option.kind === "strategy"
                     ? `<button type="button" data-action="option-use-strategy" data-message-id="${message.id}" data-option-id="${option.id}">Use strategy</button>`
                     : `<button type="button" data-action="option-soft-poi" data-message-id="${message.id}" data-option-id="${option.id}">Soft add POI</button>
                        <button type="button" data-action="option-interleave" data-message-id="${message.id}" data-option-id="${option.id}">Interleave</button>
@@ -551,8 +559,12 @@ function renderConversationInsights() {
   const dislikeEntries = Object.entries(state.conversation.learnedDislikes || {}).sort((a, b) => b[1] - a[1]).slice(0, 5);
   const mode = state.conversation.mode || "main-planning";
   const sideTrack = state.conversation.sideTrackTopic || "";
+  const generalStrategy = state.outlineDraft.generalStrategy?.title || "none";
+  const focusedBlock = state.outlineDraft.focusedBlockId || "none";
+  const tweakCount = Object.keys(state.outlineDraft.blockTweaks || {}).length;
   els.conversationInsights.innerHTML = `
     <div><strong>Conversation mode:</strong> ${htmlEscape(mode)}${sideTrack ? ` (${htmlEscape(sideTrack)})` : ""}</div>
+    <div><strong>General strategy:</strong> ${htmlEscape(generalStrategy)} | <strong>Focused point:</strong> ${htmlEscape(focusedBlock)} | <strong>Point tweaks:</strong> ${tweakCount}</div>
     <div><strong>Learned likes:</strong> ${htmlEscape(likeEntries.map(([tag]) => tag).join(", ") || "none yet")}</div>
     <div><strong>Learned dislikes:</strong> ${htmlEscape(dislikeEntries.map(([tag]) => tag).join(", ") || "none yet")}</div>
   `;
@@ -724,6 +736,11 @@ async function tryHandleQuickConversationCommands(text) {
     return true;
   }
 
+  if (lowered.includes("general strategy") || lowered.includes("back to general")) {
+    returnToGeneralStrategyMode("Switched back to general strategy mode.");
+    return true;
+  }
+
   if (lowered.includes("no planning")) {
     const created = await tryCreateNoPlanningHardPointFromText(text);
     if (created) return true;
@@ -735,11 +752,14 @@ async function tryHandleQuickConversationCommands(text) {
 function handleGenerateRoughOutline() {
   const outline = generateRoughOutline();
   state.outlineDraft.blocks = outline.blocks;
+  state.outlineDraft.blockTweaks = {};
+  state.outlineDraft.focusedBlockId = "";
   state.outlineDraft.updatedAt = new Date().toISOString();
   const options = outline.blocks.slice(0, 4).map((block) => ({
     id: generateId("outline-opt"),
     title: `${block.label}: ${block.theme}`,
-    kind: "strategy",
+    kind: "outline-block",
+    blockId: block.id,
     city: block.city || "",
     reason: block.reason,
     tags: block.tags || [],
@@ -755,14 +775,17 @@ function handleGenerateRoughOutline() {
   setStatus("Generated rough outline and requested feedback.");
 }
 
-function handleSuggestFillStrategies() {
-  const strategies = generateFillStrategies();
+function handleSuggestFillStrategies(targetBlockId = "") {
+  const targetBlock = targetBlockId ? getOutlineBlockById(targetBlockId) : null;
+  const strategies = generateFillStrategies(targetBlock);
   state.outlineDraft.strategies = strategies;
+  state.outlineDraft.focusedBlockId = targetBlock?.id || "";
   state.outlineDraft.updatedAt = new Date().toISOString();
   const options = strategies.map((strategy) => ({
     id: strategy.id,
     title: strategy.title,
     kind: "strategy",
+    blockId: targetBlock?.id || "",
     city: state.tripContext.primaryDestination || "",
     reason: strategy.reason,
     tags: strategy.tags,
@@ -770,12 +793,14 @@ function handleSuggestFillStrategies() {
   }));
   pushConversationMessage(
     "assistant",
-    "Here are multiple ways to fill your available space. Give feedback or choose one strategy, and I will refine the itinerary iteratively.",
+    targetBlock
+      ? `Here are strategy tweaks for ${targetBlock.label}. Choose one and I will return to the general strategy afterwards.`
+      : "Here are multiple ways to fill your available space. Give feedback or choose one strategy, and I will refine the itinerary iteratively.",
     options
   );
   saveState();
   renderAll();
-  setStatus("Suggested multiple fill strategies.");
+  setStatus(targetBlock ? `Suggested point-level strategy tweaks for ${targetBlock.label}.` : "Suggested multiple fill strategies.");
 }
 
 function handleShowUnderstandingSnapshot() {
@@ -783,6 +808,22 @@ function handleShowUnderstandingSnapshot() {
   saveState();
   renderAll();
   setStatus("Shared current understanding snapshot.");
+}
+
+function getOutlineBlockById(blockId) {
+  if (!blockId) return null;
+  return (state.outlineDraft.blocks || []).find((block) => block.id === blockId) || null;
+}
+
+function returnToGeneralStrategyMode(message) {
+  state.outlineDraft.focusedBlockId = "";
+  state.conversation.mode = "main-planning";
+  state.conversation.sideTrackTopic = "";
+  if (message) {
+    pushConversationMessage("assistant", message);
+  }
+  saveState();
+  renderAll();
 }
 
 function generateRoughOutline() {
@@ -810,29 +851,35 @@ function generateRoughOutline() {
   return { blocks };
 }
 
-function generateFillStrategies() {
+function generateFillStrategies(targetBlock = null) {
   const likes = Object.entries(state.conversation.learnedLikes || {}).sort((a, b) => b[1] - a[1]).map(([tag]) => tag);
   const mustInclude = state.tripContext.mustInclude || [];
   const baseTags = [...new Set([...mustInclude, ...likes].filter(Boolean))];
   const primary = baseTags[0] || "culture";
   const secondary = baseTags[1] || "food";
+  const blockContextText = targetBlock ? ` for ${targetBlock.label}` : "";
+  const blockTheme = targetBlock?.theme || primary;
   return [
     {
       id: generateId("strategy"),
-      title: `Focused depth: ${primary}`,
-      reason: `Concentrate each day on one strong theme (${primary}) plus one light counterpoint.`,
-      tags: [primary, "deep-dive"],
+      title: `Focused depth${blockContextText}: ${blockTheme}`,
+      reason: `Concentrate this segment on one strong theme (${blockTheme}) plus one light counterpoint.`,
+      tags: [blockTheme, "deep-dive"],
     },
     {
       id: generateId("strategy"),
-      title: `Balanced mix: ${primary} + ${secondary}`,
-      reason: "Split days into morning/afternoon themes and keep evenings flexible.",
+      title: `Balanced mix${blockContextText}: ${primary} + ${secondary}`,
+      reason: targetBlock
+        ? `Use the ${targetBlock.hours}h window with a morning/afternoon split and low-risk transitions.`
+        : "Split days into morning/afternoon themes and keep evenings flexible.",
       tags: [primary, secondary, "balanced"],
     },
     {
       id: generateId("strategy"),
-      title: "Event-led evenings",
-      reason: "Use daytime for anchor places and reserve evenings for events you can rate/soft-add first.",
+      title: `Event-led evenings${blockContextText}`,
+      reason: targetBlock
+        ? "Keep this point flexible: anchor one daytime stop and test evening events via soft POIs first."
+        : "Use daytime for anchor places and reserve evenings for events you can rate/soft-add first.",
       tags: ["event", "nightlife", secondary],
     },
   ];
@@ -859,7 +906,9 @@ function getUnderstandingSnapshotText({ user, trip, hard }) {
     parts.push(`User context -> name: ${state.profile.name || "n/a"}, budget: ${state.profile.budget}, pace: ${state.profile.pace}, interests: ${(state.profile.interests || []).join(", ") || "n/a"}, learned likes: ${likes.join(", ") || "n/a"}, learned dislikes: ${dislikes.join(", ") || "n/a"}.`);
   }
   if (trip) {
-    parts.push(`Trip context -> ${state.tripContext.startDate || "?"} to ${state.tripContext.endDate || "?"}, destination: ${state.tripContext.primaryDestination || "n/a"}, must include: ${(state.tripContext.mustInclude || []).join(", ") || "n/a"}, avoid: ${(state.tripContext.avoid || []).join(", ") || "n/a"}, liked examples: ${(state.tripContext.likedExamples || []).slice(0, 4).join(" | ") || "n/a"}, inferred ideas: ${(state.tripContext.inferredIdeas || []).slice(0, 5).join(" | ") || "n/a"}.`);
+    const strategy = state.outlineDraft.generalStrategy?.title || "none";
+    const tweakCount = Object.keys(state.outlineDraft.blockTweaks || {}).length;
+    parts.push(`Trip context -> ${state.tripContext.startDate || "?"} to ${state.tripContext.endDate || "?"}, destination: ${state.tripContext.primaryDestination || "n/a"}, must include: ${(state.tripContext.mustInclude || []).join(", ") || "n/a"}, avoid: ${(state.tripContext.avoid || []).join(", ") || "n/a"}, liked examples: ${(state.tripContext.likedExamples || []).slice(0, 4).join(" | ") || "n/a"}, inferred ideas: ${(state.tripContext.inferredIdeas || []).slice(0, 5).join(" | ") || "n/a"}, general strategy: ${strategy}, point tweaks: ${tweakCount}.`);
   }
   if (hard) {
     const hardPoints = getSortedHardPoints().map((point) => `${point.title} (${formatDateTime(point.start)})`).slice(0, 12);
@@ -1045,6 +1094,7 @@ function handleReturnToMainPlanning() {
   const dislikeEntries = Object.entries(state.conversation.learnedDislikes || {}).sort((a, b) => b[1] - a[1]).slice(0, 3);
   state.conversation.mode = "main-planning";
   state.conversation.sideTrackTopic = "";
+  state.outlineDraft.focusedBlockId = "";
 
   const summary = [
     "Back to main planning.",
@@ -1088,17 +1138,53 @@ async function handleConversationAction(event) {
     return;
   }
 
+  if (action === "option-dive-block") {
+    const block = getOutlineBlockById(option.blockId);
+    if (!block) {
+      setStatus("Could not find outline block for deep dive.", true);
+      return;
+    }
+    state.conversation.mode = "side-track";
+    state.conversation.sideTrackTopic = block.label;
+    state.outlineDraft.focusedBlockId = block.id;
+    handleSuggestFillStrategies(block.id);
+    return;
+  }
+
   if (action === "option-use-strategy") {
     const strategyTags = option.tags || [];
     const mergedMust = [...new Set([...(state.tripContext.mustInclude || []), ...strategyTags])];
     state.tripContext.mustInclude = mergedMust.slice(0, 25);
-    state.tripContext.styleNotes = [state.tripContext.styleNotes, `Preferred fill strategy: ${option.title}`]
-      .filter(Boolean)
-      .join(" | ");
+    if (option.blockId) {
+      const block = getOutlineBlockById(option.blockId);
+      const blockLabel = block?.label || option.blockId;
+      state.outlineDraft.blockTweaks[option.blockId] = {
+        title: option.title,
+        tags: strategyTags,
+        updatedAt: new Date().toISOString(),
+      };
+      state.tripContext.styleNotes = [state.tripContext.styleNotes, `Point strategy (${blockLabel}): ${option.title}`]
+        .filter(Boolean)
+        .join(" | ");
+    } else {
+      state.outlineDraft.generalStrategy = {
+        title: option.title,
+        tags: strategyTags,
+        updatedAt: new Date().toISOString(),
+      };
+      state.tripContext.styleNotes = [state.tripContext.styleNotes, `Preferred general strategy: ${option.title}`]
+        .filter(Boolean)
+        .join(" | ");
+    }
     applyConversationPreference(strategyTags, 1, option.title);
-    pushConversationMessage("assistant", `Applied strategy "${option.title}". I updated trip context and memory; now ask me to fill itinerary parts with this approach.`);
-    saveState();
-    renderAll();
+    if (option.blockId) {
+      const block = getOutlineBlockById(option.blockId);
+      returnToGeneralStrategyMode(`Applied point strategy "${option.title}" for ${block?.label || option.blockId}. Returning to general strategy mode.`);
+    } else {
+      pushConversationMessage("assistant", `Applied strategy "${option.title}". I updated trip context and memory; now ask me to fill itinerary parts with this approach.`);
+      saveState();
+      renderAll();
+    }
     return;
   }
 
