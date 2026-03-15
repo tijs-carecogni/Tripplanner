@@ -104,6 +104,18 @@ label {
   width: auto;
 }
 
+.results-grid {
+  display: grid;
+  gap: 0.8rem;
+  grid-template-columns: 1fr;
+}
+
+.subheader {
+  margin: 0.1rem 0 0.4rem;
+  font-size: 0.9rem;
+  color: #26466f;
+}
+
 input,
 select,
 textarea,

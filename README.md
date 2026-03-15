@@ -3,6 +3,7 @@
 A lightweight MindTrip-like travel planner focused on:
 
 - **Hard points first** (flights, booked hotels, fixed appointments, paid tickets)
+- **Route node sets** (main stops you can activate one-by-one or combine)
 - **Memory development** (learns your likes/dislikes from ratings)
 - **Personalized suggestions** (and custom ideas you can add/rate)
 - **Map + itinerary visualization**
@@ -38,13 +39,23 @@ A lightweight MindTrip-like travel planner focused on:
   - **locked** as hard points.
 - Interleaved locations/trips/events are merged chronologically with hard points in one itinerary.
 
-### 5) Event Finder
+### 5) Two-level Route Planning (MindTrip-style)
+- **Level 1 (Route level):** create route node sets (main stops/hubs).
+- Activate a single set or combine multiple sets to build alternative route skeletons.
+- Active route nodes are:
+  - shown on the map,
+  - merged into itinerary timeline,
+  - usable as route planner anchors.
+- **Level 2 (Detail level):** search and add specific places/events (hikes, shops, bars, concerts, architecture, museums, etc.) around your route.
+- Combined search returns both levels together so planning stays coherent.
+
+### 6) Event Finder
 - Search by city/area, date, and radius.
 - Combines seeded event data with nearby venue discovery.
 - Rate events to improve memory.
 - Add events either as interleaved stops or locked hard points.
 
-### 6) LLM-based Search
+### 7) LLM-based Search
 - Configure any OpenAI-compatible endpoint + model + API key.
 - Ask natural language queries (e.g. "interleave food spots and evening music between my hard points").
 - LLM returns mixed suggestions (`main-location`, `event`, `trip`) that can be:
@@ -52,7 +63,7 @@ A lightweight MindTrip-like travel planner focused on:
   - locked as hard points, or
   - rated for memory learning.
 
-### 7) Route Comparison (Google Maps-style concept)
+### 8) Route Comparison (Google Maps-style concept)
 - Compare multiple route profiles: driving, cycling, walking.
 - Support:
   - point-to-point hard point comparison

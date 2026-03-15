@@ -98,6 +98,95 @@
       </section>
 
       <section class="card">
+        <h2>Route Node Sets (main stops)</h2>
+        <p class="hint">Create alternative node sets and activate one or combine multiple sets.</p>
+        <form id="routeSetForm" class="stack">
+          <label>
+            Set name
+            <input id="routeSetName" type="text" placeholder="Cultural route set" required>
+          </label>
+          <label>
+            Description
+            <input id="routeSetDescription" type="text" placeholder="Museums + architecture path">
+          </label>
+          <button type="submit">Create route set</button>
+        </form>
+
+        <form id="routeNodeForm" class="stack">
+          <label>
+            Add node to set
+            <select id="routeNodeSet"></select>
+          </label>
+          <label>
+            Node title
+            <input id="routeNodeTitle" type="text" placeholder="Montmartre district" required>
+          </label>
+          <label>
+            Node type
+            <select id="routeNodeType">
+              <option value="city-hub">City hub</option>
+              <option value="district">District</option>
+              <option value="region-stop">Region stop</option>
+              <option value="main-location">Main location</option>
+              <option value="trip">Trip node</option>
+            </select>
+          </label>
+          <label>
+            Location
+            <input id="routeNodeLocation" type="text" placeholder="Paris, France" required>
+          </label>
+          <label>
+            Planned time (optional)
+            <input id="routeNodeStart" type="datetime-local">
+          </label>
+          <label>
+            Notes
+            <input id="routeNodeNotes" type="text" placeholder="Great base for museums and bars">
+          </label>
+          <button type="submit">Add route node</button>
+        </form>
+        <ul id="routeSetList" class="list"></ul>
+      </section>
+
+      <section class="card">
+        <h2>MindTrip Two-Level Search</h2>
+        <p class="hint">Search and combine route-level nodes + individual places/events together.</p>
+        <form id="unifiedSearchForm" class="stack">
+          <label>
+            Query
+            <input id="unifiedQuery" type="text" placeholder="hikes, bars, museums and architecture around active route nodes" required>
+          </label>
+          <label>
+            Anchor city/area
+            <input id="unifiedLocation" type="text" placeholder="Paris" required>
+          </label>
+          <label>
+            Date (optional)
+            <input id="unifiedDate" type="date">
+          </label>
+          <label>
+            Radius (km)
+            <input id="unifiedRadius" type="number" min="1" max="180" value="35">
+          </label>
+          <label class="checkbox-inline">
+            <input id="unifiedUseLlm" type="checkbox">
+            Blend LLM results (if enabled in LLM settings)
+          </label>
+          <button type="submit">Run combined search</button>
+        </form>
+        <div class="results-grid">
+          <div>
+            <h3 class="subheader">Route-level node candidates</h3>
+            <div id="unifiedRouteResults" class="results"></div>
+          </div>
+          <div>
+            <h3 class="subheader">Detail places/events</h3>
+            <div id="unifiedDetailResults" class="results"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
         <h2>Find Main Locations & Trips</h2>
         <form id="placeForm" class="stack">
           <label>

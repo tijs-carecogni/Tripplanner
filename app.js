@@ -11,6 +11,24 @@ const DEFAULT_LLM_CONFIG = {
   apiKey: "",
   enabled: false,
 };
+const DETAIL_CATEGORY_HINTS = [
+  "hike",
+  "hiking",
+  "shop",
+  "shopping",
+  "bar",
+  "bars",
+  "concert",
+  "concerts",
+  "event",
+  "events",
+  "architecture",
+  "museum",
+  "museums",
+  "gallery",
+  "food",
+  "restaurant",
+];
 
 const SUGGESTION_CATALOG = [
   { id: "s1", title: "Street food tasting walk", city: "Bangkok", tags: ["food", "culture", "walking"], budget: "budget", pace: "balanced", type: "experience", lat: 13.7563, lng: 100.5018, description: "Sample local dishes with a guide in old neighborhoods." },
@@ -73,11 +91,18 @@ function createDefaultState() {
       interests: [],
     },
     hardPoints: [],
+    routeSets: [],
     plannedStops: [],
     customSuggestions: [],
     lastPlaces: [],
     lastEvents: [],
     lastLlmResults: [],
+    lastUnifiedSearch: {
+      query: "",
+      routeNodes: [],
+      detailStops: [],
+      generatedAt: "",
+    },
     routeComparison: null,
     llm: {
       ...DEFAULT_LLM_CONFIG,
@@ -103,11 +128,18 @@ function loadState() {
       profile: { ...defaults.profile, ...(parsed.profile || {}) },
       memory: { ...defaults.memory, ...(parsed.memory || {}) },
       hardPoints: Array.isArray(parsed.hardPoints) ? parsed.hardPoints : [],
+      routeSets: Array.isArray(parsed.routeSets) ? parsed.routeSets : [],
       plannedStops: Array.isArray(parsed.plannedStops) ? parsed.plannedStops : [],
       customSuggestions: Array.isArray(parsed.customSuggestions) ? parsed.customSuggestions : [],
       lastPlaces: Array.isArray(parsed.lastPlaces) ? parsed.lastPlaces : [],
       lastEvents: Array.isArray(parsed.lastEvents) ? parsed.lastEvents : [],
       lastLlmResults: Array.isArray(parsed.lastLlmResults) ? parsed.lastLlmResults : [],
+      lastUnifiedSearch: {
+        ...defaults.lastUnifiedSearch,
+        ...(parsed.lastUnifiedSearch || {}),
+        routeNodes: Array.isArray(parsed?.lastUnifiedSearch?.routeNodes) ? parsed.lastUnifiedSearch.routeNodes : [],
+        detailStops: Array.isArray(parsed?.lastUnifiedSearch?.detailStops) ? parsed.lastUnifiedSearch.detailStops : [],
+      },
       llm: { ...DEFAULT_LLM_CONFIG, ...(parsed.llm || {}) },
     };
   } catch (error) {
@@ -171,6 +203,25 @@ function bindElements() {
     "hpLocation",
     "hpRef",
     "hpNotes",
+    "routeSetForm",
+    "routeSetName",
+    "routeSetDescription",
+    "routeNodeForm",
+    "routeNodeSet",
+    "routeNodeTitle",
+    "routeNodeType",
+    "routeNodeLocation",
+    "routeNodeStart",
+    "routeNodeNotes",
+    "routeSetList",
+    "unifiedSearchForm",
+    "unifiedQuery",
+    "unifiedLocation",
+    "unifiedDate",
+    "unifiedRadius",
+    "unifiedUseLlm",
+    "unifiedRouteResults",
+    "unifiedDetailResults",
     "routeCompareForm",
     "routeMode",
     "routeOrigin",
@@ -222,10 +273,12 @@ function initMap() {
 
   layers = {
     hardPoints: L.layerGroup().addTo(map),
+    routeNodes: L.layerGroup().addTo(map),
     plannedStops: L.layerGroup().addTo(map),
     itineraryPath: L.layerGroup().addTo(map),
     routes: L.layerGroup().addTo(map),
     events: L.layerGroup().addTo(map),
+    unified: L.layerGroup().addTo(map),
     llm: L.layerGroup().addTo(map),
   };
 }
@@ -234,6 +287,12 @@ function bindEvents() {
   els.profileForm.addEventListener("submit", handleSaveProfile);
   els.hardPointForm.addEventListener("submit", handleAddHardPoint);
   els.hardPointList.addEventListener("click", handleHardPointAction);
+  els.routeSetForm.addEventListener("submit", handleAddRouteSet);
+  els.routeNodeForm.addEventListener("submit", handleAddRouteNode);
+  els.routeSetList.addEventListener("click", handleRouteSetAction);
+  els.unifiedSearchForm.addEventListener("submit", handleUnifiedSearch);
+  els.unifiedRouteResults.addEventListener("click", handleUnifiedRouteAction);
+  els.unifiedDetailResults.addEventListener("click", handleUnifiedDetailAction);
   els.routeCompareForm.addEventListener("submit", handleRouteCompare);
   els.placeForm.addEventListener("submit", handlePlaceSearch);
   els.placeResults.addEventListener("click", handlePlaceAction);
@@ -269,6 +328,9 @@ function hydrateLlmForm() {
 function renderAll() {
   renderMemorySummary();
   renderHardPoints();
+  renderRouteSets();
+  renderRouteNodeSetOptions();
+  renderUnifiedResults();
   renderRouteSelectors();
   renderItinerary();
   renderSuggestions();
@@ -404,17 +466,515 @@ function renderHardPoints() {
     .join("");
 }
 
+function handleAddRouteSet(event) {
+  event.preventDefault();
+  const name = els.routeSetName.value.trim();
+  const description = els.routeSetDescription.value.trim();
+  if (!name) {
+    setStatus("Route set requires a name.", true);
+    return;
+  }
+
+  const routeSet = {
+    id: generateId("set"),
+    name,
+    description,
+    active: state.routeSets.length === 0,
+    createdAt: new Date().toISOString(),
+    nodes: [],
+  };
+  state.routeSets.push(routeSet);
+  saveState();
+  els.routeSetForm.reset();
+  renderAll();
+  setStatus(`Created route set "${name}".`);
+}
+
+async function handleAddRouteNode(event) {
+  event.preventDefault();
+  const setId = els.routeNodeSet.value;
+  const set = state.routeSets.find((entry) => entry.id === setId);
+  if (!set) {
+    setStatus("Create/select a route set first.", true);
+    return;
+  }
+
+  const title = els.routeNodeTitle.value.trim();
+  const type = els.routeNodeType.value;
+  const location = els.routeNodeLocation.value.trim();
+  const start = els.routeNodeStart.value || suggestInterleaveStart();
+  const notes = els.routeNodeNotes.value.trim();
+
+  if (!title || !location) {
+    setStatus("Route node needs title and location.", true);
+    return;
+  }
+
+  setStatus(`Geocoding route node "${title}"...`);
+  try {
+    const geo = await geocodeLocation(location);
+    addRouteNodeToSet(set.id, {
+      title,
+      type,
+      city: geo.city,
+      locationLabel: geo.label,
+      lat: geo.lat,
+      lng: geo.lng,
+      start,
+      notes,
+      sourceKind: "route-node",
+    });
+    els.routeNodeForm.reset();
+    setStatus(`Added node "${title}" to set "${set.name}".`);
+  } catch (error) {
+    console.error(error);
+    setStatus(`Could not geocode route node: ${error.message}`, true);
+  }
+}
+
+function addRouteNodeToSet(setId, nodeInput) {
+  state.routeSets = state.routeSets.map((set) => {
+    if (set.id !== setId) return set;
+    const node = {
+      id: generateId("node"),
+      title: nodeInput.title,
+      type: nodeInput.type || "main-location",
+      city: nodeInput.city || "",
+      locationLabel: nodeInput.locationLabel || nodeInput.city || nodeInput.title,
+      lat: Number.isFinite(nodeInput.lat) ? nodeInput.lat : 0,
+      lng: Number.isFinite(nodeInput.lng) ? nodeInput.lng : 0,
+      start: nodeInput.start || suggestInterleaveStart(),
+      end: "",
+      notes: nodeInput.notes || "",
+      tags: nodeInput.tags || [nodeInput.type || "route-node"],
+      sourceKind: nodeInput.sourceKind || "route-node",
+      createdAt: new Date().toISOString(),
+    };
+    const nodes = Array.isArray(set.nodes) ? [...set.nodes, node] : [node];
+    return {
+      ...set,
+      nodes: nodes.sort((a, b) => (Date.parse(a.start) || 0) - (Date.parse(b.start) || 0)),
+    };
+  });
+  saveState();
+  renderAll();
+}
+
+function renderRouteNodeSetOptions() {
+  if (!state.routeSets.length) {
+    els.routeNodeSet.innerHTML = "<option value=''>No route set</option>";
+    return;
+  }
+  els.routeNodeSet.innerHTML = state.routeSets
+    .map((set) => `<option value="${set.id}">${htmlEscape(set.name)}${set.active ? " (active)" : ""}</option>`)
+    .join("");
+}
+
+function renderRouteSets() {
+  if (!state.routeSets.length) {
+    els.routeSetList.innerHTML = "<li class='list-item'>No route sets yet. Create one above.</li>";
+    return;
+  }
+
+  els.routeSetList.innerHTML = state.routeSets
+    .map((set) => {
+      const nodes = Array.isArray(set.nodes) ? set.nodes : [];
+      const nodeList = nodes.length
+        ? nodes.map((node) => `
+            <li class="meta">
+              ${htmlEscape(node.title)} (${formatDateTime(node.start)})
+              <span class="item-actions">
+                <button type="button" data-action="focus-route-node" data-set-id="${set.id}" data-node-id="${node.id}">Map</button>
+                <button type="button" data-action="remove-route-node" data-set-id="${set.id}" data-node-id="${node.id}">Remove</button>
+              </span>
+            </li>
+          `).join("")
+        : "<li class='meta'>No nodes yet.</li>";
+      return `
+        <li class="list-item">
+          <h4>${htmlEscape(set.name)} ${set.active ? "<small>(active)</small>" : "<small>(inactive)</small>"}</h4>
+          ${set.description ? `<div class="meta">${htmlEscape(set.description)}</div>` : ""}
+          <div class="item-actions">
+            <button type="button" data-action="toggle-route-set" data-set-id="${set.id}">${set.active ? "Deactivate" : "Activate"}</button>
+            <button type="button" data-action="activate-only-route-set" data-set-id="${set.id}">Use only this set</button>
+            <button type="button" data-action="remove-route-set" data-set-id="${set.id}">Remove set</button>
+          </div>
+          <ul class="list">${nodeList}</ul>
+        </li>
+      `;
+    })
+    .join("");
+}
+
+function handleRouteSetAction(event) {
+  const button = event.target.closest("button[data-action]");
+  if (!button) return;
+  const action = button.dataset.action;
+  const setId = button.dataset.setId;
+  const nodeId = button.dataset.nodeId;
+  const set = state.routeSets.find((entry) => entry.id === setId);
+  if (!set) return;
+
+  if (action === "toggle-route-set") {
+    state.routeSets = state.routeSets.map((entry) => (entry.id === setId ? { ...entry, active: !entry.active } : entry));
+    saveState();
+    renderAll();
+    setStatus(`Route set "${set.name}" ${set.active ? "deactivated" : "activated"}.`);
+    return;
+  }
+
+  if (action === "activate-only-route-set") {
+    state.routeSets = state.routeSets.map((entry) => ({ ...entry, active: entry.id === setId }));
+    saveState();
+    renderAll();
+    setStatus(`Using only route set "${set.name}".`);
+    return;
+  }
+
+  if (action === "remove-route-set") {
+    state.routeSets = state.routeSets.filter((entry) => entry.id !== setId);
+    saveState();
+    renderAll();
+    setStatus(`Removed route set "${set.name}".`);
+    return;
+  }
+
+  if (!nodeId) return;
+  const node = (set.nodes || []).find((entry) => entry.id === nodeId);
+  if (!node) return;
+
+  if (action === "focus-route-node") {
+    map.setView([node.lat, node.lng], 12);
+    setStatus(`Map centered on route node "${node.title}".`);
+    return;
+  }
+
+  if (action === "remove-route-node") {
+    state.routeSets = state.routeSets.map((entry) => {
+      if (entry.id !== setId) return entry;
+      return {
+        ...entry,
+        nodes: (entry.nodes || []).filter((item) => item.id !== nodeId),
+      };
+    });
+    saveState();
+    renderAll();
+    setStatus(`Removed route node "${node.title}".`);
+  }
+}
+
+function getSortedActiveRouteNodes() {
+  return state.routeSets
+    .filter((set) => set.active)
+    .flatMap((set) => (set.nodes || []).map((node) => ({
+      ...node,
+      routeSetId: set.id,
+      routeSetName: set.name,
+    })))
+    .sort((a, b) => (Date.parse(a.start) || 0) - (Date.parse(b.start) || 0));
+}
+
+function getPlanningAnchors() {
+  return [...getSortedHardPoints(), ...getSortedActiveRouteNodes()]
+    .sort((a, b) => (Date.parse(a.start) || 0) - (Date.parse(b.start) || 0));
+}
+
+async function handleUnifiedSearch(event) {
+  event.preventDefault();
+  const query = els.unifiedQuery.value.trim();
+  const location = els.unifiedLocation.value.trim();
+  const date = els.unifiedDate.value;
+  const radiusKm = Number(els.unifiedRadius.value || 35);
+  const blendLlm = Boolean(els.unifiedUseLlm.checked);
+
+  if (!query || !location) {
+    setStatus("Combined search requires query and anchor location.", true);
+    return;
+  }
+
+  setStatus("Running two-level combined search...");
+  try {
+    const geo = await geocodeLocation(location);
+    const preferredTags = extractPreferredTagsFromQuery(query);
+
+    const [routeMain, routeTrips, eventSeed, eventVenues, detailPlaces] = await Promise.all([
+      getMainLocationsNear(geo.lat, geo.lng, radiusKm),
+      Promise.resolve(getTripIdeasNear(geo.lat, geo.lng, radiusKm)),
+      Promise.resolve(getSeedEventsNear(geo.lat, geo.lng, date || new Date().toISOString().slice(0, 10), radiusKm)),
+      getVenueEventsNear(geo.lat, geo.lng, date || new Date().toISOString().slice(0, 10), radiusKm),
+      getDetailPlacesNear(geo.lat, geo.lng, radiusKm),
+    ]);
+
+    const routeCandidates = dedupeGenericItems([...routeMain, ...routeTrips]).map((item) => ({
+      ...item,
+      level: "route",
+      relevance: scoreByQuery(item, preferredTags),
+    }));
+    const detailCandidates = dedupeGenericItems([...eventSeed, ...eventVenues, ...detailPlaces]).map((item) => ({
+      ...item,
+      level: "detail",
+      relevance: scoreByQuery(item, preferredTags),
+    }));
+
+    if (blendLlm && state.llm.enabled && state.llm.apiKey) {
+      try {
+        const llm = await callLlmSearch({
+          query,
+          location,
+          date,
+          resultCount: 12,
+        });
+        llm.forEach((item) => {
+          if (item.kind === "event") {
+            detailCandidates.push({
+              ...item,
+              level: "detail",
+              relevance: scoreByQuery(item, preferredTags) + 2,
+            });
+          } else {
+            routeCandidates.push({
+              ...item,
+              level: "route",
+              relevance: scoreByQuery(item, preferredTags) + 2,
+            });
+          }
+        });
+      } catch (error) {
+        console.warn("LLM blending failed", error);
+      }
+    }
+
+    const sortedRoute = dedupeGenericItems(routeCandidates)
+      .sort((a, b) => b.relevance - a.relevance)
+      .slice(0, 14);
+    const sortedDetail = dedupeGenericItems(detailCandidates)
+      .sort((a, b) => b.relevance - a.relevance)
+      .slice(0, 20);
+
+    state.lastUnifiedSearch = {
+      query,
+      routeNodes: sortedRoute,
+      detailStops: sortedDetail,
+      generatedAt: new Date().toISOString(),
+    };
+    saveState();
+    renderUnifiedResults();
+    renderMap();
+    setStatus(`Combined search ready: ${sortedRoute.length} route nodes + ${sortedDetail.length} detail stops.`);
+  } catch (error) {
+    console.error(error);
+    setStatus(`Combined search failed: ${error.message}`, true);
+  }
+}
+
+function renderUnifiedResults() {
+  const routeNodes = state.lastUnifiedSearch?.routeNodes || [];
+  const detailStops = state.lastUnifiedSearch?.detailStops || [];
+
+  if (!routeNodes.length) {
+    els.unifiedRouteResults.innerHTML = "<div class='result-card'>No route-level results yet.</div>";
+  } else {
+    els.unifiedRouteResults.innerHTML = routeNodes
+      .map((item) => `
+        <article class="result-card">
+          <strong>${htmlEscape(item.title)}</strong>
+          <div class="meta">${htmlEscape(item.kind || item.category || "route-node")} | ${htmlEscape(item.city || "Unknown city")}</div>
+          <div class="meta">${htmlEscape(item.description || item.reason || "Route-level candidate")}</div>
+          <div class="item-actions">
+            <button type="button" data-action="add-route-node" data-id="${item.id}">Add to active set</button>
+            <button type="button" data-action="lock-route-node" data-id="${item.id}">Lock as hard point</button>
+            <button type="button" data-action="rate-route-node" data-id="${item.id}" data-rating="4">Rate 4</button>
+            <button type="button" data-action="rate-route-node" data-id="${item.id}" data-rating="5">Rate 5</button>
+          </div>
+        </article>
+      `)
+      .join("");
+  }
+
+  if (!detailStops.length) {
+    els.unifiedDetailResults.innerHTML = "<div class='result-card'>No detail-level results yet.</div>";
+    return;
+  }
+  els.unifiedDetailResults.innerHTML = detailStops
+    .map((item) => `
+      <article class="result-card">
+        <strong>${htmlEscape(item.title)}</strong>
+        <div class="meta">${htmlEscape(item.kind || item.category || "detail")} | ${htmlEscape(item.city || "Unknown city")}</div>
+        <div class="meta">${htmlEscape(item.description || item.reason || "Detail place/event candidate")}</div>
+        <div class="item-actions">
+          <button type="button" data-action="interleave-detail" data-id="${item.id}">Interleave detail stop</button>
+          <button type="button" data-action="lock-detail" data-id="${item.id}">Lock as hard point</button>
+          <button type="button" data-action="rate-detail" data-id="${item.id}" data-rating="3">Rate 3</button>
+          <button type="button" data-action="rate-detail" data-id="${item.id}" data-rating="4">Rate 4</button>
+          <button type="button" data-action="rate-detail" data-id="${item.id}" data-rating="5">Rate 5</button>
+        </div>
+      </article>
+    `)
+    .join("");
+}
+
+async function handleUnifiedRouteAction(event) {
+  const button = event.target.closest("button[data-action]");
+  if (!button) return;
+  const action = button.dataset.action;
+  const itemId = button.dataset.id;
+  const item = (state.lastUnifiedSearch?.routeNodes || []).find((entry) => entry.id === itemId);
+  if (!item) return;
+
+  if (action === "rate-route-node") {
+    const rating = Number(button.dataset.rating);
+    applyRating({
+      itemId: item.id,
+      title: item.title,
+      city: item.city,
+      tags: item.tags || [item.kind || "route-node"],
+      kind: "route-node-candidate",
+    }, rating);
+    return;
+  }
+
+  try {
+    const enriched = await ensureCoordinatesForGenericItem(item);
+    if (action === "lock-route-node") {
+      pinAsHardPoint({
+        title: enriched.title,
+        type: enriched.kind || enriched.category || "route-node",
+        city: enriched.city,
+        locationLabel: enriched.locationQuery || enriched.title,
+        lat: enriched.lat,
+        lng: enriched.lng,
+        notes: "Pinned from combined search route level",
+        start: enriched.startHint || suggestInterleaveStart(),
+      });
+      setStatus(`Locked "${enriched.title}" as hard point.`);
+      return;
+    }
+
+    if (action === "add-route-node") {
+      const set = ensureDefaultRouteSet();
+      addRouteNodeToSet(set.id, {
+        title: enriched.title,
+        type: enriched.kind || enriched.category || "main-location",
+        city: enriched.city,
+        locationLabel: enriched.locationQuery || enriched.title,
+        lat: enriched.lat,
+        lng: enriched.lng,
+        start: enriched.startHint || suggestInterleaveStart(),
+        notes: "Added from combined search (route level)",
+        sourceKind: "route-node",
+        tags: enriched.tags || [enriched.kind || "route-node"],
+      });
+      setStatus(`Added "${enriched.title}" to route set "${set.name}".`);
+    }
+  } catch (error) {
+    console.error(error);
+    setStatus(`Could not use route-level result: ${error.message}`, true);
+  }
+}
+
+async function handleUnifiedDetailAction(event) {
+  const button = event.target.closest("button[data-action]");
+  if (!button) return;
+  const action = button.dataset.action;
+  const itemId = button.dataset.id;
+  const item = (state.lastUnifiedSearch?.detailStops || []).find((entry) => entry.id === itemId);
+  if (!item) return;
+
+  if (action === "rate-detail") {
+    const rating = Number(button.dataset.rating);
+    applyRating({
+      itemId: item.id,
+      title: item.title,
+      city: item.city,
+      tags: item.tags || [item.kind || item.category || "detail"],
+      kind: "detail-stop",
+    }, rating);
+    return;
+  }
+
+  try {
+    const enriched = await ensureCoordinatesForGenericItem(item);
+    if (action === "lock-detail") {
+      pinAsHardPoint({
+        title: enriched.title,
+        type: enriched.kind || enriched.category || "detail-stop",
+        city: enriched.city,
+        locationLabel: enriched.locationQuery || enriched.title,
+        lat: enriched.lat,
+        lng: enriched.lng,
+        notes: "Pinned from combined search detail level",
+        start: enriched.startHint || suggestInterleaveStart(),
+      });
+      setStatus(`Locked detail stop "${enriched.title}" as hard point.`);
+      return;
+    }
+
+    if (action === "interleave-detail") {
+      addPlannedStopFromSource(enriched, {
+        sourceKind: "detail-stop",
+        type: enriched.kind || enriched.category || "detail",
+        start: enriched.startHint || suggestInterleaveStart(),
+        notes: "Interleaved from combined search detail level",
+      });
+      setStatus(`Interleaved detail stop "${enriched.title}".`);
+    }
+  } catch (error) {
+    console.error(error);
+    setStatus(`Could not use detail-level result: ${error.message}`, true);
+  }
+}
+
+function ensureDefaultRouteSet() {
+  let existing = state.routeSets.find((set) => set.active);
+  if (existing) return existing;
+  if (!state.routeSets.length) {
+    existing = {
+      id: generateId("set"),
+      name: "Default route set",
+      description: "Auto-created for combined search results",
+      active: true,
+      createdAt: new Date().toISOString(),
+      nodes: [],
+    };
+    state.routeSets.push(existing);
+  } else {
+    state.routeSets = state.routeSets.map((set, index) => ({ ...set, active: index === 0 }));
+    existing = state.routeSets[0];
+  }
+  saveState();
+  renderRouteSets();
+  renderRouteNodeSetOptions();
+  return existing;
+}
+
+function extractPreferredTagsFromQuery(query) {
+  const lowered = String(query || "").toLowerCase();
+  return DETAIL_CATEGORY_HINTS.filter((token) => lowered.includes(token));
+}
+
+function scoreByQuery(item, preferredTags) {
+  let score = 20;
+  const text = `${item.title || ""} ${item.description || item.reason || ""} ${(item.tags || []).join(" ")} ${item.category || ""}`.toLowerCase();
+  preferredTags.forEach((tag) => {
+    if (text.includes(tag)) score += 4;
+  });
+  if ((item.kind || "").includes("trip")) score += preferredTags.includes("trip") ? 4 : 1;
+  if ((item.kind || "").includes("event")) score += preferredTags.includes("event") || preferredTags.includes("concert") ? 4 : 1;
+  return score;
+}
+
 function renderRouteSelectors() {
-  const options = state.hardPoints
-    .map((point) => `<option value="${point.id}">${htmlEscape(point.title)} (${formatShortDate(point.start)})</option>`)
+  const anchors = getPlanningAnchors();
+  const options = anchors
+    .map((point) => `<option value="${point.id}">${htmlEscape(point.title)} [${htmlEscape(point.sourceKind)}] (${formatShortDate(point.start)})</option>`)
     .join("");
 
-  els.routeOrigin.innerHTML = options || "<option value=''>No hard points</option>";
-  els.routeDestination.innerHTML = options || "<option value=''>No hard points</option>";
+  els.routeOrigin.innerHTML = options || "<option value=''>No route anchors</option>";
+  els.routeDestination.innerHTML = options || "<option value=''>No route anchors</option>";
 
-  if (state.hardPoints.length >= 2) {
-    els.routeOrigin.value = state.hardPoints[0].id;
-    els.routeDestination.value = state.hardPoints[state.hardPoints.length - 1].id;
+  if (anchors.length >= 2) {
+    els.routeOrigin.value = anchors[0].id;
+    els.routeDestination.value = anchors[anchors.length - 1].id;
   }
 }
 
@@ -428,14 +988,19 @@ function renderItinerary() {
   const blocks = [];
   for (let i = 0; i < timeline.length; i += 1) {
     const point = timeline[i];
-    const lockLabel = point.locked ? "Locked hard point" : "Interleaved flexible stop";
+    let lockLabel = "Interleaved flexible stop";
+    if (point.locked) {
+      lockLabel = "Locked hard point";
+    } else if (String(point.sourceKind || "").startsWith("route-node:")) {
+      lockLabel = "Route node (main stop)";
+    }
     blocks.push(`
       <article class="itinerary-stop">
         <strong>${i + 1}. ${htmlEscape(point.title)}</strong>
         <div class="meta">${lockLabel} (${htmlEscape(point.type || point.sourceKind || "stop")})</div>
         <div class="meta">${formatDateTime(point.start)} ${point.end ? `-> ${formatDateTime(point.end)}` : ""}</div>
         <div class="meta">${htmlEscape(point.city || point.locationLabel)}</div>
-        ${!point.locked ? `<div class="item-actions"><button type="button" data-action="remove-planned-stop" data-id="${point.id}">Remove interleaved stop</button></div>` : ""}
+        ${(!point.locked && !String(point.sourceKind || "").startsWith("route-node:")) ? `<div class="item-actions"><button type="button" data-action="remove-planned-stop" data-id="${point.id}">Remove interleaved stop</button></div>` : ""}
       </article>
     `);
     const next = timeline[i + 1];
@@ -891,6 +1456,62 @@ function getTripIdeasNear(lat, lng, radiusKm) {
   return dedupeGenericItems([...seeded, ...catalogTripIdeas]);
 }
 
+async function getDetailPlacesNear(lat, lng, radiusKm) {
+  const radiusMeters = Math.round(Math.max(1, radiusKm) * 1000);
+  const overpassQuery = `
+    [out:json][timeout:25];
+    (
+      node(around:${radiusMeters},${lat},${lng})[amenity~"bar|pub|cafe|restaurant|nightclub|arts_centre|theatre|music_venue"];
+      way(around:${radiusMeters},${lat},${lng})[amenity~"bar|pub|cafe|restaurant|nightclub|arts_centre|theatre|music_venue"];
+      node(around:${radiusMeters},${lat},${lng})[tourism~"museum|gallery|attraction|viewpoint"];
+      way(around:${radiusMeters},${lat},${lng})[tourism~"museum|gallery|attraction|viewpoint"];
+      node(around:${radiusMeters},${lat},${lng})[shop];
+      way(around:${radiusMeters},${lat},${lng})[shop];
+      node(around:${radiusMeters},${lat},${lng})[leisure~"park|garden|nature_reserve"];
+      way(around:${radiusMeters},${lat},${lng})[leisure~"park|garden|nature_reserve"];
+      node(around:${radiusMeters},${lat},${lng})[natural~"peak|cliff"];
+      way(around:${radiusMeters},${lat},${lng})[natural~"peak|cliff"];
+    );
+    out center 60;
+  `;
+
+  try {
+    const response = await fetch("https://overpass-api.de/api/interpreter", {
+      method: "POST",
+      body: overpassQuery,
+    });
+    if (!response.ok) return [];
+    const payload = await response.json();
+    return (payload.elements || []).slice(0, 30).map((entry) => {
+      const latitude = Number(entry.lat ?? entry.center?.lat);
+      const longitude = Number(entry.lon ?? entry.center?.lon);
+      const name = entry.tags?.name || "Interesting place";
+      const category = entry.tags?.amenity || entry.tags?.tourism || entry.tags?.shop || entry.tags?.leisure || entry.tags?.natural || "detail";
+      const tags = [
+        category,
+        entry.tags?.tourism,
+        entry.tags?.shop ? "shop" : "",
+        entry.tags?.amenity ? "venue" : "",
+        entry.tags?.natural ? "hike" : "",
+      ].filter(Boolean).map((tag) => String(tag).toLowerCase());
+      return {
+        id: `detail-${entry.type}-${entry.id}`,
+        title: name,
+        city: "Near search area",
+        lat: latitude,
+        lng: longitude,
+        kind: "detail-place",
+        category,
+        description: `Detail stop candidate (${category})`,
+        tags: tags.length ? tags : ["detail-place"],
+      };
+    });
+  } catch (error) {
+    console.warn("Detail places lookup failed", error);
+    return [];
+  }
+}
+
 function renderPlaceResults() {
   if (!state.lastPlaces.length) {
     els.placeResults.innerHTML = "<div class='result-card'>No location/trip search yet.</div>";
@@ -1258,6 +1879,24 @@ async function ensureLlmItemCoordinates(item) {
   return enriched;
 }
 
+async function ensureCoordinatesForGenericItem(item) {
+  if (Number.isFinite(item.lat) && Number.isFinite(item.lng)) {
+    return item;
+  }
+  const lookup = item.locationQuery || [item.title, item.city].filter(Boolean).join(", ");
+  if (!lookup.trim()) {
+    throw new Error("No location text available for geocoding.");
+  }
+  const geo = await geocodeLocation(lookup);
+  return {
+    ...item,
+    city: item.city || geo.city,
+    lat: geo.lat,
+    lng: geo.lng,
+    locationQuery: geo.label || lookup,
+  };
+}
+
 function renderEventResults() {
   if (!state.lastEvents.length) {
     els.eventResults.innerHTML = "<div class='result-card'>No events searched yet.</div>";
@@ -1331,8 +1970,8 @@ function handleEventAction(event) {
 
 async function handleRouteCompare(event) {
   event.preventDefault();
-  if (state.hardPoints.length < 2) {
-    setStatus("Need at least two hard points for route comparison.", true);
+  if (getPlanningAnchors().length < 2) {
+    setStatus("Need at least two route anchors (hard points and/or active route nodes).", true);
     return;
   }
   const mode = els.routeMode.value;
@@ -1376,7 +2015,7 @@ async function handleRouteCompare(event) {
 }
 
 function getRouteCoordinates(mode, originId, destinationId) {
-  const points = getSortedHardPoints().filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng));
+  const points = getPlanningAnchors().filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng));
   if (mode === "whole-trip") {
     return points.map((point) => [point.lat, point.lng]);
   }
@@ -1444,10 +2083,12 @@ function renderRouteResults() {
 
 function renderMap() {
   layers.hardPoints.clearLayers();
+  layers.routeNodes.clearLayers();
   layers.plannedStops.clearLayers();
   layers.itineraryPath.clearLayers();
   layers.routes.clearLayers();
   layers.events.clearLayers();
+  layers.unified.clearLayers();
   layers.llm.clearLayers();
 
   const mapElements = [];
@@ -1457,6 +2098,19 @@ function renderMap() {
     const marker = L.marker([point.lat, point.lng], { title: point.title })
       .bindPopup(`<strong>${htmlEscape(point.title)}</strong><br>${htmlEscape(point.locationLabel || point.city || "")}<br>Hard point #${index + 1}`);
     marker.addTo(layers.hardPoints);
+    mapElements.push(marker);
+  });
+
+  const activeRouteNodes = getSortedActiveRouteNodes();
+  activeRouteNodes.forEach((node) => {
+    if (!Number.isFinite(node.lat) || !Number.isFinite(node.lng)) return;
+    const marker = L.circleMarker([node.lat, node.lng], {
+      radius: 7,
+      color: "#18667f",
+      fillColor: "#3aa0bf",
+      fillOpacity: 0.85,
+    }).bindPopup(`<strong>${htmlEscape(node.title)}</strong><br>Route node (${htmlEscape(node.routeSetName || "set")})`);
+    marker.addTo(layers.routeNodes);
     mapElements.push(marker);
   });
 
@@ -1511,6 +2165,29 @@ function renderMap() {
     }).bindPopup(`<strong>${htmlEscape(event.title)}</strong><br>${htmlEscape(event.date)} | ${htmlEscape(event.category)}`);
     circle.addTo(layers.events);
     mapElements.push(circle);
+  });
+
+  (state.lastUnifiedSearch?.routeNodes || []).forEach((item) => {
+    if (!Number.isFinite(item.lat) || !Number.isFinite(item.lng)) return;
+    const marker = L.circleMarker([item.lat, item.lng], {
+      radius: 5,
+      color: "#0f7f95",
+      fillColor: "#4cb5ca",
+      fillOpacity: 0.75,
+    }).bindPopup(`<strong>${htmlEscape(item.title)}</strong><br>Combined route-level candidate`);
+    marker.addTo(layers.unified);
+    mapElements.push(marker);
+  });
+  (state.lastUnifiedSearch?.detailStops || []).forEach((item) => {
+    if (!Number.isFinite(item.lat) || !Number.isFinite(item.lng)) return;
+    const marker = L.circleMarker([item.lat, item.lng], {
+      radius: 4,
+      color: "#99570d",
+      fillColor: "#f09a35",
+      fillOpacity: 0.75,
+    }).bindPopup(`<strong>${htmlEscape(item.title)}</strong><br>Combined detail candidate`);
+    marker.addTo(layers.unified);
+    mapElements.push(marker);
   });
 
   state.lastLlmResults.forEach((item) => {
@@ -1591,12 +2268,17 @@ function getTimelineItems() {
     locked: true,
     sourceKind: "hard-point",
   }));
+  const routeNodes = getSortedActiveRouteNodes().map((node) => ({
+    ...node,
+    locked: false,
+    sourceKind: `route-node:${node.routeSetName || "set"}`,
+  }));
   const planned = getSortedPlannedStops().map((point) => ({
     ...point,
     locked: false,
     sourceKind: point.sourceKind || "interleave",
   }));
-  return [...hard, ...planned].sort((a, b) => {
+  return [...hard, ...routeNodes, ...planned].sort((a, b) => {
     const da = Date.parse(a.start) || 0;
     const db = Date.parse(b.start) || 0;
     if (da === db) {
@@ -1692,6 +2374,9 @@ function setDefaultEventDate() {
   const date = new Date();
   date.setDate(date.getDate() + 7);
   els.eventDate.value = date.toISOString().slice(0, 10);
+  if (!els.unifiedDate.value) {
+    els.unifiedDate.value = date.toISOString().slice(0, 10);
+  }
   if (!els.llmSearchDate.value) {
     els.llmSearchDate.value = date.toISOString().slice(0, 10);
   }
@@ -1701,6 +2386,11 @@ function setDefaultEventDate() {
   const placeStart = new Date();
   placeStart.setHours(placeStart.getHours() + 6);
   els.placeInterleaveTime.value = placeStart.toISOString().slice(0, 16);
+  if (!els.routeNodeStart.value) {
+    const routeNodeStart = new Date();
+    routeNodeStart.setHours(routeNodeStart.getHours() + 5);
+    els.routeNodeStart.value = routeNodeStart.toISOString().slice(0, 16);
+  }
 }
 
 function init() {
