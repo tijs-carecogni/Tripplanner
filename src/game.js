@@ -1337,41 +1337,169 @@ class ColonistFullGame {
     this.autoplayBtn.textContent = "Start Autoplay";
   }
 
-  drawHex(hex) {
+  drawBoardBackdrop() {
+    const ctx = this.ctx;
+    const { width, height } = this.canvas;
+
+    const ocean = ctx.createLinearGradient(0, 0, 0, height);
+    ocean.addColorStop(0, "#123455");
+    ocean.addColorStop(0.42, "#0f2f4d");
+    ocean.addColorStop(1, "#102740");
+    ctx.fillStyle = ocean;
+    ctx.fillRect(0, 0, width, height);
+
+    const glow = ctx.createRadialGradient(width * 0.33, height * 0.3, 30, width * 0.38, height * 0.45, 420);
+    glow.addColorStop(0, "rgba(115, 212, 255, 0.20)");
+    glow.addColorStop(1, "rgba(115, 212, 255, 0)");
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, width, height);
+
+    ctx.strokeStyle = "rgba(170, 222, 255, 0.08)";
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 11; i += 1) {
+      const y = height * 0.22 + i * 42 + ((this.turn + i) % 3) * 2;
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      for (let x = 0; x <= width; x += 34) {
+        const wave = Math.sin((x + i * 20) / 46) * 3;
+        ctx.lineTo(x, y + wave);
+      }
+      ctx.stroke();
+    }
+  }
+
+  drawHexPath(corners) {
     const ctx = this.ctx;
     ctx.beginPath();
-    hex.corners.forEach((corner, idx) => {
+    corners.forEach((corner, idx) => {
       if (idx === 0) ctx.moveTo(corner.x, corner.y);
       else ctx.lineTo(corner.x, corner.y);
     });
     ctx.closePath();
+  }
+
+  drawTokenPips(hex) {
+    if (hex.number == null) return;
+    const ctx = this.ctx;
+    const pips = DICE_WEIGHT[hex.number];
+    const radius = 2.1;
+    const spacing = 5;
+    const startX = hex.center.x - ((pips - 1) * spacing) / 2;
+    const y = hex.center.y + 10;
+    ctx.fillStyle = hex.number === 6 || hex.number === 8 ? "#af1b1b" : "#38485f";
+    for (let i = 0; i < pips; i += 1) {
+      ctx.beginPath();
+      ctx.arc(startX + i * spacing, y, radius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  drawRoundedRect(x, y, width, height, radius) {
+    const ctx = this.ctx;
+    const r = Math.min(radius, width / 2, height / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + width, y, x + width, y + height, r);
+    ctx.arcTo(x + width, y + height, x, y + height, r);
+    ctx.arcTo(x, y + height, x, y, r);
+    ctx.arcTo(x, y, x + width, y, r);
+    ctx.closePath();
+  }
+
+  drawHex(hex) {
+    const ctx = this.ctx;
+    this.drawHexPath(hex.corners);
+    ctx.save();
+    ctx.shadowColor = "rgba(5, 11, 19, 0.55)";
+    ctx.shadowBlur = 9;
+    ctx.shadowOffsetY = 4;
     ctx.fillStyle = RESOURCE_COLORS[hex.resource];
     ctx.fill();
-    ctx.strokeStyle = "rgba(0,0,0,0.35)";
-    ctx.lineWidth = 2;
+    ctx.restore();
+
+    this.drawHexPath(hex.corners);
+    const surface = ctx.createLinearGradient(hex.center.x - 38, hex.center.y - 38, hex.center.x + 38, hex.center.y + 38);
+    surface.addColorStop(0, "rgba(255,255,255,0.20)");
+    surface.addColorStop(0.45, "rgba(255,255,255,0)");
+    surface.addColorStop(1, "rgba(0,0,0,0.20)");
+    ctx.fillStyle = surface;
+    ctx.fill();
+
+    ctx.save();
+    this.drawHexPath(hex.corners);
+    ctx.clip();
+    for (let i = 0; i < 6; i += 1) {
+      const sx = hex.center.x + Math.sin(hex.id * 7.3 + i * 1.9) * 30;
+      const sy = hex.center.y + Math.cos(hex.id * 5.2 + i * 2.2) * 28;
+      const radius = 8 + ((hex.id + i) % 5);
+      ctx.beginPath();
+      ctx.arc(sx, sy, radius, 0, Math.PI * 2);
+      ctx.fillStyle = i % 2 ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.07)";
+      ctx.fill();
+    }
+    ctx.restore();
+
+    this.drawHexPath(hex.corners);
+    ctx.strokeStyle = "rgba(0, 11, 22, 0.46)";
+    ctx.lineWidth = 2.3;
     ctx.stroke();
 
     if (hex.number != null) {
+      ctx.save();
+      ctx.shadowColor = "rgba(0, 0, 0, 0.45)";
+      ctx.shadowBlur = 7;
+      ctx.shadowOffsetY = 2;
       ctx.beginPath();
-      ctx.arc(hex.center.x, hex.center.y, 18, 0, Math.PI * 2);
-      ctx.fillStyle = "rgba(247,245,236,0.94)";
+      ctx.arc(hex.center.x, hex.center.y, 20, 0, Math.PI * 2);
+      const token = ctx.createRadialGradient(hex.center.x - 6, hex.center.y - 7, 2, hex.center.x, hex.center.y, 22);
+      token.addColorStop(0, "rgba(255,252,245,0.98)");
+      token.addColorStop(1, "rgba(214,210,199,0.95)");
+      ctx.fillStyle = token;
       ctx.fill();
-      ctx.strokeStyle = "rgba(0,0,0,0.35)";
+      ctx.restore();
+
+      ctx.beginPath();
+      ctx.arc(hex.center.x, hex.center.y, 20, 0, Math.PI * 2);
+      ctx.strokeStyle = "rgba(27, 35, 48, 0.36)";
+      ctx.lineWidth = 1.5;
       ctx.stroke();
-      ctx.fillStyle = hex.number === 6 || hex.number === 8 ? "#b61818" : "#19202c";
-      ctx.font = "bold 16px Inter, sans-serif";
+
+      ctx.fillStyle = hex.number === 6 || hex.number === 8 ? "#be1a1a" : "#18212c";
+      ctx.font = "bold 17px Inter, sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText(String(hex.number), hex.center.x, hex.center.y);
+      ctx.fillText(String(hex.number), hex.center.x, hex.center.y - 2);
+      this.drawTokenPips(hex);
     }
 
+    ctx.fillStyle = "rgba(239, 248, 255, 0.72)";
+    ctx.font = "600 10px Inter, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    const label = hex.resource === "desert" ? "DES" : RESOURCE_SHORT[hex.resource];
+    ctx.fillText(label, hex.center.x, hex.center.y + 32);
+
     if (hex.id === this.robberHexId) {
+      ctx.save();
+      ctx.translate(hex.center.x + 24, hex.center.y - 22);
+      ctx.shadowColor = "rgba(0,0,0,0.45)";
+      ctx.shadowBlur = 6;
+      ctx.fillStyle = "#242b35";
       ctx.beginPath();
-      ctx.arc(hex.center.x + 21, hex.center.y - 20, 9, 0, Math.PI * 2);
-      ctx.fillStyle = "#232a34";
+      ctx.arc(0, -8, 4.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(-7, 7);
+      ctx.lineTo(-4, -2);
+      ctx.lineTo(0, -5);
+      ctx.lineTo(4, -2);
+      ctx.lineTo(7, 7);
+      ctx.closePath();
       ctx.fill();
       ctx.strokeStyle = "#9ba2ac";
+      ctx.lineWidth = 1;
       ctx.stroke();
+      ctx.restore();
     }
   }
 
@@ -1386,46 +1514,86 @@ class ColonistFullGame {
       const dx = mx - this.geometry.centerX;
       const dy = my - this.geometry.centerY;
       const length = Math.hypot(dx, dy) || 1;
-      const ox = (dx / length) * 18;
-      const oy = (dy / length) * 18;
+      const ox = (dx / length) * 17;
+      const oy = (dy / length) * 17;
 
-      ctx.strokeStyle = "rgba(220,236,255,0.65)";
+      ctx.strokeStyle = "rgba(197, 231, 255, 0.72)";
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.moveTo(mx, my);
       ctx.lineTo(mx + ox, my + oy);
       ctx.stroke();
 
-      ctx.fillStyle = "#e0ecff";
-      ctx.font = "bold 11px Inter, sans-serif";
+      ctx.beginPath();
+      ctx.arc(mx + ox, my + oy, 2.8, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(233, 244, 255, 0.9)";
+      ctx.fill();
+
+      const label = port.type === "any" ? "3:1" : `2:1 ${RESOURCE_SHORT[port.type]}`;
+      const boxX = mx + ox * 1.35 - 20;
+      const boxY = my + oy * 1.35 - 8;
+      this.drawRoundedRect(boxX, boxY, 40, 16, 7);
+      ctx.fillStyle = "rgba(16, 26, 40, 0.88)";
+      ctx.fill();
+      ctx.strokeStyle = "rgba(173, 225, 255, 0.58)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      ctx.fillStyle = "#ddf1ff";
+      ctx.font = "700 10px Inter, sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      const label = port.type === "any" ? "3:1" : `2:1 ${RESOURCE_SHORT[port.type]}`;
-      ctx.fillText(label, mx + ox * 1.65, my + oy * 1.65);
+      ctx.fillText(label, boxX + 20, boxY + 8.5);
     });
   }
 
   drawRoads() {
     const ctx = this.ctx;
+    ctx.lineCap = "round";
     this.geometry.edges.forEach((edge) => {
       const [a, b] = edge.nodes;
       const p1 = this.geometry.nodes[a];
       const p2 = this.geometry.nodes[b];
+
+      if (edge.owner == null) {
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
+        ctx.strokeStyle = "rgba(228, 240, 255, 0.16)";
+        ctx.lineWidth = 2;
+        ctx.setLineDash([5, 4]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        return;
+      }
+
       ctx.beginPath();
       ctx.moveTo(p1.x, p1.y);
       ctx.lineTo(p2.x, p2.y);
-      if (edge.owner == null) {
-        ctx.strokeStyle = "rgba(219,230,244,0.18)";
-        ctx.lineWidth = 2;
-      } else {
-        ctx.strokeStyle = this.players[edge.owner].color;
-        ctx.lineWidth = 7;
-      }
+      ctx.strokeStyle = "rgba(13, 17, 25, 0.62)";
+      ctx.lineWidth = 9.3;
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(p1.x, p1.y);
+      ctx.lineTo(p2.x, p2.y);
+      ctx.strokeStyle = this.players[edge.owner].color;
+      ctx.lineWidth = 6.6;
+      ctx.stroke();
+
+      const highlight = ctx.createLinearGradient(p1.x, p1.y, p2.x, p2.y);
+      highlight.addColorStop(0, "rgba(255,255,255,0.33)");
+      highlight.addColorStop(1, "rgba(255,255,255,0)");
+      ctx.beginPath();
+      ctx.moveTo(p1.x, p1.y);
+      ctx.lineTo(p2.x, p2.y);
+      ctx.strokeStyle = highlight;
+      ctx.lineWidth = 2;
       ctx.stroke();
     });
 
     if (this.pendingAction === "road" && this.currentPlayer.isHuman && this.phase === "main") {
-      ctx.strokeStyle = "rgba(112, 214, 255, 0.85)";
+      ctx.strokeStyle = "rgba(112, 214, 255, 0.9)";
       ctx.lineWidth = 4;
       this.geometry.edges.forEach((edge) => {
         if (!this.canBuildRoad(this.currentPlayer, edge.id, { free: false })) return;
@@ -1447,9 +1615,18 @@ class ColonistFullGame {
       const player = this.players[node.owner];
       ctx.save();
       ctx.translate(node.x, node.y);
-      ctx.fillStyle = player.color;
-      ctx.strokeStyle = "#111521";
+      ctx.shadowColor = "rgba(0, 0, 0, 0.45)";
+      ctx.shadowBlur = 8;
+      ctx.shadowOffsetY = 3;
+
+      const fill = ctx.createLinearGradient(-9, -8, 9, 8);
+      fill.addColorStop(0, "rgba(255,255,255,0.26)");
+      fill.addColorStop(0.25, player.color);
+      fill.addColorStop(1, "rgba(16,16,20,0.45)");
+      ctx.fillStyle = fill;
+      ctx.strokeStyle = "#0f1722";
       ctx.lineWidth = 1.2;
+
       if (node.structure === "settlement") {
         ctx.beginPath();
         ctx.moveTo(-8, 6);
@@ -1458,6 +1635,10 @@ class ColonistFullGame {
         ctx.lineTo(8, -2);
         ctx.lineTo(8, 6);
         ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = "rgba(255,255,255,0.3)";
+        ctx.fillRect(-5.8, -0.8, 2.4, 2.4);
       } else {
         ctx.beginPath();
         ctx.rect(-9, -6, 18, 12);
@@ -1465,15 +1646,19 @@ class ColonistFullGame {
         ctx.lineTo(0, -13);
         ctx.lineTo(10, -6);
         ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = "rgba(255,255,255,0.3)";
+        ctx.fillRect(-5, -1, 3, 3);
+        ctx.fillRect(2, -1, 3, 3);
       }
-      ctx.fill();
-      ctx.stroke();
       ctx.restore();
     });
 
     if (!this.currentPlayer.isHuman || this.phase !== "main") return;
     if (this.pendingAction !== "settlement" && this.pendingAction !== "city") return;
-    ctx.fillStyle = "rgba(112, 214, 255, 0.45)";
+    const pulse = 0.28 + (Math.sin(Date.now() / 240) + 1) * 0.15;
+    ctx.fillStyle = `rgba(112, 214, 255, ${pulse})`;
     this.geometry.nodes.forEach((node) => {
       const buildable =
         this.pendingAction === "settlement"
@@ -1481,9 +1666,40 @@ class ColonistFullGame {
           : this.canBuildCity(this.currentPlayer, node.id, false);
       if (!buildable) return;
       ctx.beginPath();
-      ctx.arc(node.x, node.y, 6, 0, Math.PI * 2);
+      ctx.arc(node.x, node.y, 6.5, 0, Math.PI * 2);
       ctx.fill();
     });
+  }
+
+  drawTurnHud() {
+    const ctx = this.ctx;
+    const active = this.currentPlayer;
+    const phase = this.phase === "pre_roll" ? "Roll" : this.phase === "main" ? "Main" : "Over";
+    this.drawRoundedRect(20, 18, 250, 66, 10);
+    ctx.fillStyle = "rgba(10, 20, 34, 0.72)";
+    ctx.fill();
+    ctx.strokeStyle = "rgba(153, 211, 255, 0.35)";
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+
+    ctx.fillStyle = "#d7ecff";
+    ctx.font = "700 14px Inter, sans-serif";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    ctx.fillText(`Turn ${this.turn} · ${phase} phase`, 32, 39);
+    ctx.fillStyle = active.color;
+    ctx.font = "700 13px Inter, sans-serif";
+    ctx.fillText(`Active: ${active.name}`, 32, 60);
+
+    this.drawRoundedRect(228, 28, 34, 24, 7);
+    ctx.fillStyle = "rgba(223, 236, 250, 0.94)";
+    ctx.fill();
+    ctx.strokeStyle = "rgba(35, 50, 67, 0.42)";
+    ctx.stroke();
+    ctx.fillStyle = "#1c2a3c";
+    ctx.font = "700 14px Inter, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(String(this.lastRoll ?? "-"), 245, 40.5);
   }
 
   renderScoreboard() {
@@ -1500,6 +1716,10 @@ class ColonistFullGame {
       if (this.longestRoadHolder === idx) badges.push("Longest Road");
       if (this.largestArmyHolder === idx) badges.push("Largest Army");
       if (player.isHuman) badges.push("Human");
+      const resourceChips = RESOURCES.map(
+        (resource) =>
+          `<span class="resource-chip ${resource}">${RESOURCE_SHORT[resource]} ${player.resources[resource]}</span>`,
+      ).join("");
 
       card.innerHTML = `
         <div class="player-row">
@@ -1507,7 +1727,7 @@ class ColonistFullGame {
           <span>${player.victoryPoints} VP</span>
         </div>
         <div class="resource-line">Road ${player.roads.size} · Settle ${player.settlements.size} · City ${player.cities.size}</div>
-        <div class="resource-line">${resourceString(player.resources)}</div>
+        <div class="resource-chips">${resourceChips}</div>
         <div class="resource-line">Dev VP ${player.devVictoryPoints} · Knights ${player.knightsPlayed} · LR ${player.longestRoadLength}</div>
         <div class="resource-line">Dev Cards: ${actionCards}</div>
         <div class="resource-line">Trade rates: ${tradeRates}</div>
@@ -1579,10 +1799,12 @@ class ColonistFullGame {
 
   render() {
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    this.drawBoardBackdrop();
     this.geometry.hexes.forEach((hex) => this.drawHex(hex));
     this.drawPorts();
     this.drawRoads();
     this.drawStructures();
+    this.drawTurnHud();
     this.renderScoreboard();
     this.renderLog();
     this.renderStatusAndControls();
