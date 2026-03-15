@@ -101,7 +101,9 @@ Then open:
 
 - `index.html` - app layout and UI sections
 - `styles.css` - styling and responsive layout
-- `app.js` - state, memory engine, routing/events/geocoding integration, rendering logic
+- `app.js` - app orchestration, state transitions, UI handlers, planner workflows
+- `src/constants.js` - static configuration and seeded travel data catalogs
+- `src/utils.js` - shared utility helpers (IDs, tags, date/time, distance, formatting)
 
 ## Notes
 
