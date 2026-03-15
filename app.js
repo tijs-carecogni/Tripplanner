@@ -21,15 +21,16 @@ import {
   parseDateInput,
   parseTags,
 } from "./src/utils.js";
+import {
+  buildEntityLinkKey,
+  createHighlightController,
+} from "./src/interaction.js";
 
 const els = {};
 let map;
 let layers;
 let state = loadState();
-let mapHighlightEntries = [];
-let highlightedEntityKey = "";
-let highlightedSegmentKey = "";
-let highlightedEntityLinkKey = "";
+const interactionController = createHighlightController();
 
 function createDefaultState() {
   return {
@@ -375,29 +376,6 @@ function renderAll() {
   renderExperienceVisuals();
   renderMap();
   applyDOMHighlight();
-}
-
-function slugifyEntityToken(value) {
-  return String(value || "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 80);
-}
-
-function buildEntityLinkKey(itemOrTitle, cityValue = "") {
-  if (itemOrTitle && typeof itemOrTitle === "object") {
-    const title = itemOrTitle.title || itemOrTitle.locationLabel || itemOrTitle.venue || "";
-    const city = itemOrTitle.city || cityValue || "";
-    const titleSlug = slugifyEntityToken(title);
-    const citySlug = slugifyEntityToken(city);
-    if (!titleSlug && !citySlug) return "";
-    return `link:${titleSlug}${citySlug ? `@${citySlug}` : ""}`;
-  }
-  const titleSlug = slugifyEntityToken(itemOrTitle);
-  const citySlug = slugifyEntityToken(cityValue);
-  if (!titleSlug && !citySlug) return "";
-  return `link:${titleSlug}${citySlug ? `@${citySlug}` : ""}`;
 }
 
 function handleSaveProfile(event) {
@@ -3691,126 +3669,23 @@ function buildSegmentKey(fromId, toId) {
 }
 
 function bindCrossHighlightInteractions() {
-  document.body.addEventListener("pointerover", handleGlobalPointerOver);
-  document.body.addEventListener("pointerout", handleGlobalPointerOut);
-}
-
-function handleGlobalPointerOver(event) {
-  const target = event.target.closest("[data-entity-key], [data-segment-key], [data-entity-link]");
-  if (!target) return;
-  setHighlightedEntity(
-    target.dataset.entityKey || "",
-    target.dataset.segmentKey || "",
-    target.dataset.entityLink || ""
-  );
-}
-
-function handleGlobalPointerOut(event) {
-  const current = event.target.closest("[data-entity-key], [data-segment-key], [data-entity-link]");
-  if (!current) return;
-  const related = event.relatedTarget;
-  const next = related && typeof related.closest === "function"
-    ? related.closest("[data-entity-key], [data-segment-key], [data-entity-link]")
-    : null;
-  const nextEntity = next?.dataset.entityKey || "";
-  const nextSegment = next?.dataset.segmentKey || "";
-  const nextLink = next?.dataset.entityLink || "";
-  const currentEntity = current.dataset.entityKey || "";
-  const currentSegment = current.dataset.segmentKey || "";
-  const currentLink = current.dataset.entityLink || "";
-  if (currentEntity === nextEntity && currentSegment === nextSegment && currentLink === nextLink) return;
-  setHighlightedEntity(nextEntity, nextSegment, nextLink);
-}
-
-function setHighlightedEntity(entityKey = "", segmentKey = "", linkKey = "") {
-  const nextEntity = String(entityKey || "");
-  const nextSegment = String(segmentKey || "");
-  const nextLink = String(linkKey || "");
-  if (highlightedEntityKey === nextEntity && highlightedSegmentKey === nextSegment && highlightedEntityLinkKey === nextLink) return;
-  highlightedEntityKey = nextEntity;
-  highlightedSegmentKey = nextSegment;
-  highlightedEntityLinkKey = nextLink;
-  applyDOMHighlight();
-  applyMapHighlight();
+  interactionController.bindRoot(document.body);
 }
 
 function applyDOMHighlight() {
-  const targets = document.querySelectorAll("[data-entity-key], [data-segment-key], [data-entity-link]");
-  const hasHighlight = Boolean(highlightedEntityKey || highlightedSegmentKey || highlightedEntityLinkKey);
-  targets.forEach((element) => {
-    const entityKey = element.dataset.entityKey || "";
-    const segmentKey = element.dataset.segmentKey || "";
-    const entityLink = element.dataset.entityLink || "";
-    const active = (highlightedEntityKey && entityKey === highlightedEntityKey)
-      || (highlightedSegmentKey && segmentKey === highlightedSegmentKey)
-      || (highlightedEntityLinkKey && entityLink === highlightedEntityLinkKey);
-    element.classList.toggle("highlight-active", Boolean(active));
-    element.classList.toggle("highlight-dim", hasHighlight && !active);
-  });
+  interactionController.applyDOMHighlight();
 }
 
-function registerMapLayer(layer, {
-  entityKeys = [],
-  segmentKeys = [],
-  linkKeys = [],
-  baseStyle = null,
-  enableHover = true,
-} = {}) {
-  if (!layer) return;
-  const normalizedEntity = entityKeys.filter(Boolean);
-  const normalizedSegment = segmentKeys.filter(Boolean);
-  const normalizedLinks = linkKeys.filter(Boolean);
-  mapHighlightEntries.push({
-    layer,
-    entityKeys: new Set(normalizedEntity),
-    segmentKeys: new Set(normalizedSegment),
-    linkKeys: new Set(normalizedLinks),
-    baseStyle,
-  });
-
-  if (enableHover && (normalizedEntity.length || normalizedSegment.length || normalizedLinks.length) && typeof layer.on === "function") {
-    layer.on("mouseover", () => {
-      setHighlightedEntity(normalizedEntity[0] || "", normalizedSegment[0] || "", normalizedLinks[0] || "");
-    });
-    layer.on("mouseout", () => {
-      setHighlightedEntity("", "", "");
-    });
-  }
+function registerMapLayer(layer, config) {
+  interactionController.registerMapLayer(layer, config);
 }
 
 function applyMapHighlight() {
-  const hasHighlight = Boolean(highlightedEntityKey || highlightedSegmentKey || highlightedEntityLinkKey);
-  mapHighlightEntries.forEach((entry) => {
-    const isActive = (highlightedEntityKey && entry.entityKeys.has(highlightedEntityKey))
-      || (highlightedSegmentKey && entry.segmentKeys.has(highlightedSegmentKey))
-      || (highlightedEntityLinkKey && entry.linkKeys.has(highlightedEntityLinkKey));
+  interactionController.applyMapHighlight();
+}
 
-    if (typeof entry.layer.setStyle === "function" && entry.baseStyle) {
-      if (!hasHighlight) {
-        entry.layer.setStyle(entry.baseStyle);
-      } else if (isActive) {
-        const activeStyle = { ...entry.baseStyle };
-        if (Number.isFinite(activeStyle.weight)) activeStyle.weight += 1.8;
-        if (Number.isFinite(activeStyle.radius)) activeStyle.radius += 2;
-        if (Number.isFinite(activeStyle.opacity)) activeStyle.opacity = Math.min(1, activeStyle.opacity + 0.2);
-        if (Number.isFinite(activeStyle.fillOpacity)) activeStyle.fillOpacity = Math.min(1, activeStyle.fillOpacity + 0.2);
-        entry.layer.setStyle(activeStyle);
-        if (typeof entry.layer.bringToFront === "function") entry.layer.bringToFront();
-      } else {
-        const dimStyle = { ...entry.baseStyle };
-        if (Number.isFinite(dimStyle.weight)) dimStyle.weight = Math.max(1, dimStyle.weight * 0.7);
-        if (Number.isFinite(dimStyle.opacity)) dimStyle.opacity = Math.max(0.12, dimStyle.opacity * 0.25);
-        if (Number.isFinite(dimStyle.fillOpacity)) dimStyle.fillOpacity = Math.max(0.12, dimStyle.fillOpacity * 0.25);
-        entry.layer.setStyle(dimStyle);
-      }
-    }
-
-    const layerElement = typeof entry.layer.getElement === "function" ? entry.layer.getElement() : null;
-    if (layerElement) {
-      layerElement.classList.toggle("map-highlight-active", hasHighlight && Boolean(isActive));
-      layerElement.classList.toggle("map-highlight-dim", hasHighlight && !isActive);
-    }
-  });
+function resetMapHighlightEntries() {
+  interactionController.resetMapEntries();
 }
 
 function renderMap() {
@@ -3824,7 +3699,7 @@ function renderMap() {
   layers.events.clearLayers();
   layers.unified.clearLayers();
   layers.llm.clearLayers();
-  mapHighlightEntries = [];
+  resetMapHighlightEntries();
 
   const mapElements = [];
   const sorted = getSortedHardPoints();

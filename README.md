@@ -122,6 +122,7 @@ Then open:
 - `app.js` - app orchestration, state transitions, UI handlers, planner workflows
 - `src/constants.js` - static configuration and seeded travel data catalogs
 - `src/utils.js` - shared utility helpers (IDs, tags, date/time, distance, formatting)
+- `src/interaction.js` - shared interaction primitives (entity-link keys + cross-component highlight controller)
 
 ## Notes
 
