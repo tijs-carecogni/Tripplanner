@@ -1,5 +1,6 @@
 const RESOURCES = ["wood", "brick", "sheep", "wheat", "ore"];
 const RESOURCE_SHORT = { wood: "Wd", brick: "Br", sheep: "Sh", wheat: "Wh", ore: "Or" };
+const RESOURCE_ICON = { wood: "🪵", brick: "🧱", sheep: "🐑", wheat: "🌾", ore: "⛰️" };
 const RESOURCE_COLORS = {
   wood: "#2f8f3b",
   brick: "#c66536",
@@ -298,6 +299,8 @@ class ColonistFullGame {
     this.scoreboard = document.querySelector("#scoreboard");
     this.statusText = document.querySelector("#statusText");
     this.hintText = document.querySelector("#hintText");
+    this.leftPlayerPanel = document.querySelector("#leftPlayerPanel");
+    this.rightPlayerPanel = document.querySelector("#rightPlayerPanel");
 
     this.nextTurnBtn = document.querySelector("#nextTurnBtn");
     this.autoplayBtn = document.querySelector("#autoplayBtn");
@@ -1478,7 +1481,7 @@ class ColonistFullGame {
     ctx.font = "700 10px Inter, sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    const label = hex.resource === "desert" ? "DES" : RESOURCE_SHORT[hex.resource];
+    const label = hex.resource === "desert" ? "DES" : `${RESOURCE_ICON[hex.resource]} ${RESOURCE_SHORT[hex.resource]}`;
     ctx.fillStyle = "rgba(20, 52, 86, 0.75)";
     ctx.fillText(label, hex.center.x, hex.center.y + 32);
 
@@ -1727,8 +1730,7 @@ class ColonistFullGame {
         .toUpperCase();
       const vpPercent = Math.min(100, Math.round((player.victoryPoints / WINNING_POINTS) * 100));
       const resourceChips = RESOURCES.map(
-        (resource) =>
-          `<span class="resource-chip ${resource}">${RESOURCE_SHORT[resource]} ${player.resources[resource]}</span>`,
+        (resource) => `<span class="resource-chip ${resource}">${RESOURCE_ICON[resource]} ${player.resources[resource]}</span>`,
       ).join("");
 
       card.innerHTML = `
@@ -1749,6 +1751,30 @@ class ColonistFullGame {
       `;
       this.scoreboard.appendChild(card);
     });
+  }
+
+  renderTopPanels() {
+    const left = this.players[0];
+    let right = this.currentPlayer;
+    if (right.id === left.id) {
+      right = this.players.find((player) => player.id !== left.id) || right;
+    }
+
+    const renderMini = (player, container) => {
+      if (!container || !player) return;
+      const res = RESOURCES.map((resource) => `${RESOURCE_ICON[resource]} ${player.resources[resource]}`).join(" ");
+      container.innerHTML = `
+        <div class="mini-player-row">
+          <span class="mini-player-name" style="color:${player.color}">${player.name}</span>
+          <strong>${player.victoryPoints} VP</strong>
+        </div>
+        <div class="mini-player-row">Road ${player.roads.size} · Settle ${player.settlements.size} · City ${player.cities.size}</div>
+        <div class="mini-player-res">${res}</div>
+      `;
+    };
+
+    renderMini(left, this.leftPlayerPanel);
+    renderMini(right, this.rightPlayerPanel);
   }
 
   renderLog() {
@@ -1819,6 +1845,7 @@ class ColonistFullGame {
     this.drawRoads();
     this.drawStructures();
     this.drawTurnHud();
+    this.renderTopPanels();
     this.renderScoreboard();
     this.renderLog();
     this.renderStatusAndControls();
