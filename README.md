@@ -107,7 +107,21 @@ A lightweight MindTrip-like travel planner focused on:
 
 ## Run Locally
 
-No build step is required.
+### Option A (recommended): run backend + frontend together
+
+This mode enables persisted user/trip saves via `/api/state`.
+
+```bash
+cd backend
+npm install
+npm start
+```
+
+Then open:
+
+`http://localhost:8787`
+
+### Option B: static frontend only (no backend persistence)
 
 ```bash
 python3 -m http.server 8000
@@ -124,6 +138,9 @@ Then open:
 - `styles.css` - styling and responsive layout
 - `THEMING_PLAN.md` - consistent styling blueprint and rollout checklist
 - `app.js` - app orchestration, state transitions, UI handlers, planner workflows
+- `backend/server.js` - Express API + static host for persisted user/trip state
+- `backend/data/trip-store.json` - generated on first save (gitignored)
+- `frontend/` - React + TypeScript migration scaffold (phase 1 shell + persistence panel)
 - `src/constants.js` - static configuration and seeded travel data catalogs
 - `src/utils.js` - shared utility helpers (IDs, tags, date/time, distance, formatting)
 - `src/interaction.js` - shared interaction primitives (entity-link keys + cross-component highlight controller)
@@ -133,7 +150,8 @@ Then open:
 
 ## Notes
 
-- Browser `localStorage` is used to persist profile, hard points, interleaved stops, memory scores, ratings, and custom suggestions.
+- Browser `localStorage` remains the immediate state store for UI responsiveness.
+- New backend persistence is available via **Cloud Trip Save** (`userId` + `tripId`) and stores full planner state server-side.
 - LLM API key is stored in browser localStorage for convenience in this MVP.
 - External map/routing/geocoding data depends on availability of public services.
 - UI iteration screenshots can be refreshed with `./scripts/capture_demo_screenshots.sh`.

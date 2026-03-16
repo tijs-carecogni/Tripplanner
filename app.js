@@ -36,8 +36,13 @@ const MOBILE_VIEW_STORAGE_KEY = "mindtrip_mobile_view_v1";
 const MOBILE_PLAN_VIEW_STORAGE_KEY = "mindtrip_mobile_plan_view_v1";
 const VISUAL_BOARD_COLLAPSE_STORAGE_KEY = "mindtrip_visual_board_collapsed_v1";
 const ITINERARY_COLLAPSE_STORAGE_KEY = "mindtrip_itinerary_collapsed_days_v1";
+const SYNC_CONFIG_STORAGE_KEY = "mindtrip_sync_config_v1";
+const API_BASE_STORAGE_KEY = "mindtrip_api_base_v1";
+const REMOTE_SAVE_DEBOUNCE_MS = 900;
 const segmentRouteGeometryCache = new Map();
 let itineraryCollapseState = loadItineraryCollapseState();
+let remoteSaveTimer = null;
+let syncConfig = loadSyncConfig();
 
 function createDefaultState() {
   return {
@@ -111,6 +116,41 @@ function createDefaultState() {
       cityScores: {},
     },
   };
+}
+
+function createDefaultSyncConfig() {
+  return {
+    userId: "",
+    tripId: "",
+    autoSync: true,
+    apiBase: "",
+  };
+}
+
+function loadSyncConfig() {
+  const defaults = createDefaultSyncConfig();
+  try {
+    const raw = localStorage.getItem(SYNC_CONFIG_STORAGE_KEY);
+    if (!raw) return defaults;
+    const parsed = JSON.parse(raw);
+    return {
+      ...defaults,
+      ...(parsed || {}),
+      userId: String(parsed?.userId || "").trim(),
+      tripId: String(parsed?.tripId || "").trim(),
+      autoSync: parsed?.autoSync !== false,
+      apiBase: String(parsed?.apiBase || "").trim(),
+    };
+  } catch {
+    return defaults;
+  }
+}
+
+function saveSyncConfig() {
+  localStorage.setItem(SYNC_CONFIG_STORAGE_KEY, JSON.stringify(syncConfig));
+  if (syncConfig.apiBase) {
+    localStorage.setItem(API_BASE_STORAGE_KEY, syncConfig.apiBase);
+  }
 }
 
 function loadState() {
@@ -189,8 +229,10 @@ function loadState() {
   }
 }
 
-function saveState() {
+function saveState(options = {}) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  if (options.skipRemote === true) return;
+  scheduleRemoteSave();
 }
 
 function setStatus(message, isError = false) {
@@ -198,9 +240,76 @@ function setStatus(message, isError = false) {
   els.statusMessage.classList.toggle("warning", isError);
 }
 
+function setSyncStatus(message, isError = false) {
+  if (!els.syncStatus) return;
+  els.syncStatus.textContent = message;
+  els.syncStatus.classList.toggle("warning", isError);
+}
+
+function getApiBase() {
+  const stored = (syncConfig.apiBase || "").trim() || localStorage.getItem(API_BASE_STORAGE_KEY) || "";
+  if (stored) return stored.replace(/\/+$/, "");
+  return `${window.location.origin}/api`;
+}
+
+function canSyncRemote() {
+  return Boolean(syncConfig.userId && syncConfig.tripId);
+}
+
+async function pushStateToRemote() {
+  if (!canSyncRemote()) return;
+  const response = await fetch(`${getApiBase()}/state`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      userId: syncConfig.userId,
+      tripId: syncConfig.tripId,
+      state,
+    }),
+  });
+  if (!response.ok) {
+    throw new Error(`Remote save failed (${response.status})`);
+  }
+}
+
+async function pullStateFromRemote() {
+  if (!canSyncRemote()) {
+    throw new Error("Set user + trip IDs to load cloud state.");
+  }
+  const params = new URLSearchParams({
+    userId: syncConfig.userId,
+    tripId: syncConfig.tripId,
+  });
+  const response = await fetch(`${getApiBase()}/state?${params.toString()}`);
+  if (!response.ok) {
+    throw new Error(`Remote load failed (${response.status})`);
+  }
+  const payload = await response.json();
+  return payload;
+}
+
+function scheduleRemoteSave() {
+  if (!syncConfig.autoSync || !canSyncRemote()) return;
+  if (remoteSaveTimer) window.clearTimeout(remoteSaveTimer);
+  remoteSaveTimer = window.setTimeout(async () => {
+    try {
+      await pushStateToRemote();
+      setSyncStatus(`Cloud sync OK (${syncConfig.userId}/${syncConfig.tripId}).`);
+    } catch (error) {
+      setSyncStatus(`Cloud sync failed: ${error.message}`, true);
+    }
+  }, REMOTE_SAVE_DEBOUNCE_MS);
+}
+
 function bindElements() {
   const ids = [
     "statusMessage",
+    "syncForm",
+    "syncUserId",
+    "syncTripId",
+    "syncAutoSync",
+    "syncLoadBtn",
+    "syncStatus",
     "mobileViewTabs",
     "mobileTabPlan",
     "mobileTabControls",
@@ -356,6 +465,12 @@ function initMap() {
 }
 
 function bindEvents() {
+  if (els.syncForm) {
+    els.syncForm.addEventListener("submit", handleSaveSyncConfig);
+  }
+  if (els.syncLoadBtn) {
+    els.syncLoadBtn.addEventListener("click", handleLoadCloudState);
+  }
   if (els.mobileViewTabs) {
     els.mobileViewTabs.addEventListener("click", handleMobileViewToggle);
   }
@@ -661,6 +776,67 @@ function handleMobileViewToggle(event) {
   } catch {
     // ignore storage failures
   }
+}
+
+function hydrateSyncForm() {
+  if (!els.syncForm) return;
+  els.syncUserId.value = syncConfig.userId || "";
+  els.syncTripId.value = syncConfig.tripId || "";
+  els.syncAutoSync.checked = syncConfig.autoSync !== false;
+  setSyncStatus(canSyncRemote()
+    ? `Ready to sync ${syncConfig.userId}/${syncConfig.tripId}.`
+    : "Set user + trip IDs to enable cloud save.");
+}
+
+async function loadCloudState({ initial = false } = {}) {
+  if (!canSyncRemote()) return;
+  try {
+    if (!initial) setSyncStatus("Loading trip from cloud...");
+    const payload = await pullStateFromRemote();
+    if (payload?.found && payload?.state) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(payload.state));
+      state = loadState();
+      hydrateProfileForm();
+      hydrateTripContextForm();
+      hydrateExpertSettingsForm();
+      hydrateLlmForm();
+      ensureConversationInitialized();
+      renderAll();
+      setSyncStatus(`Loaded cloud trip (${syncConfig.userId}/${syncConfig.tripId}).`);
+      setStatus("Loaded trip from cloud.");
+      return;
+    }
+    setSyncStatus("No cloud state found yet. Local state remains active.");
+    if (syncConfig.autoSync && initial) {
+      scheduleRemoteSave();
+    }
+  } catch (error) {
+    if (!initial) {
+      setSyncStatus(`Cloud load failed: ${error.message}`, true);
+    } else {
+      setSyncStatus("Cloud unavailable. Using local save.", true);
+    }
+  }
+}
+
+function handleSaveSyncConfig(event) {
+  event.preventDefault();
+  syncConfig = {
+    ...syncConfig,
+    userId: String(els.syncUserId.value || "").trim(),
+    tripId: String(els.syncTripId.value || "").trim(),
+    autoSync: Boolean(els.syncAutoSync.checked),
+    apiBase: syncConfig.apiBase || "",
+  };
+  saveSyncConfig();
+  hydrateSyncForm();
+  if (syncConfig.autoSync && canSyncRemote()) {
+    scheduleRemoteSave();
+  }
+}
+
+async function handleLoadCloudState() {
+  await loadCloudState({ initial: false });
 }
 
 function handleSaveProfile(event) {
@@ -4764,6 +4940,7 @@ function setDefaultEventDate() {
 
 function init() {
   bindElements();
+  hydrateSyncForm();
   initializeMobileView();
   initializeMobilePlanView();
   initializeVisualBoardCollapsed();
@@ -4779,6 +4956,7 @@ function init() {
   ensureConversationInitialized();
   renderAll();
   setStatus("MindTrip planner ready. Add hard points to begin.");
+  void loadCloudState({ initial: true });
 }
 
 window.addEventListener("DOMContentLoaded", init);

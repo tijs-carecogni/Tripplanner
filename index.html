@@ -33,6 +33,30 @@
   <main class="layout">
     <aside class="sidebar">
       <section class="card">
+        <h2>Cloud Trip Save</h2>
+        <p class="hint">Persist user + trip state between sessions with backend storage.</p>
+        <form id="syncForm" class="stack">
+          <label>
+            User ID
+            <input id="syncUserId" type="text" placeholder="alex">
+          </label>
+          <label>
+            Trip ID
+            <input id="syncTripId" type="text" placeholder="japan-apr-2026">
+          </label>
+          <label class="checkbox-inline">
+            <input id="syncAutoSync" type="checkbox" checked>
+            Auto-sync every change
+          </label>
+          <div class="item-actions">
+            <button type="submit">Save sync settings</button>
+            <button id="syncLoadBtn" type="button">Load from cloud</button>
+          </div>
+        </form>
+        <div id="syncStatus" class="memory-summary">Cloud sync idle.</div>
+      </section>
+
+      <section class="card">
         <h2>Traveler Memory</h2>
         <form id="profileForm" class="stack">
           <label>
