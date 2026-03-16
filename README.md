@@ -178,6 +178,26 @@ bash ./scripts/deploy_azure_containerapp.sh
 This creates/updates an Azure Container App from this repo and prints a public HTTPS URL.
 For production-grade durable server-side saves, mount Azure Files and set `TRIPMIND_DATA_DIR`.
 
+### Azure via Terraform (recommended when `az` CLI is unavailable)
+
+If your environment does not have Azure CLI, use Terraform directly:
+
+```bash
+cd infra/terraform/azure
+cp terraform.tfvars.example terraform.tfvars
+# set container_image in terraform.tfvars
+terraform init
+terraform apply
+terraform output container_app_url
+```
+
+Auth is done via ARM environment variables (no Azure CLI required):
+
+- `ARM_SUBSCRIPTION_ID`
+- `ARM_TENANT_ID`
+- `ARM_CLIENT_ID`
+- `ARM_CLIENT_SECRET` (or OIDC in CI)
+
 ## Files
 
 - `index.html` - app layout and UI sections
@@ -196,6 +216,7 @@ For production-grade durable server-side saves, mount Azure Files and set `TRIPM
 - `scripts/capture_demo_screenshots.sh` - regenerates demo-filled hero screenshots for UI iteration
 - `scripts/capture_mobile_screenshots.sh` - captures mobile-first screenshot set for visual QA
 - `scripts/deploy_azure_containerapp.sh` - one-command Azure Container Apps deploy for a live demo URL
+- `infra/terraform/azure/` - Terraform stack for Azure Container Apps + Azure Files persistence (no `az` CLI required)
 - `screenshots/bootstrap-demo.html` - localStorage bootstrap page used by screenshot workflow
 
 ## Notes

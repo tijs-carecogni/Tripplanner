@@ -1,0 +1,8 @@
+resource_group_name         = "tripmind-demo-rg"
+location                    = "westeurope"
+container_app_name          = "tripmind-demo"
+container_environment_name  = "tripmind-demo-env"
+
+# Use an image you publish from this repo, for example:
+# ghcr.io/<github-user-or-org>/tripplanner:latest
+container_image = "ghcr.io/your-org-or-user/tripplanner:latest"
