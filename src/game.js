@@ -354,7 +354,11 @@ class ColonistFullGame {
     this.autoplayInterval = null;
     this.aiTurnTimeout = null;
     this.animTime = 0;
+    this.lastAnimationTs = 0;
     this.animationFrame = null;
+    this.boardWidth = Number(this.canvas.getAttribute("width")) || 1100;
+    this.boardHeight = Number(this.canvas.getAttribute("height")) || 560;
+    this.pixelRatio = 1;
     this.view = { offsetX: 0, offsetY: 0, scale: 1 };
     this.dragState = { active: false, startX: 0, startY: 0, baseOffsetX: 0, baseOffsetY: 0 };
     this.hoverHexId = null;
@@ -363,15 +367,36 @@ class ColonistFullGame {
     this.hoverPointer = { x: 0, y: 0 };
     this.hoverTooltip = "";
 
+    this.configureCanvasResolution();
     this.populateResourceSelects();
     this.bindControls();
     this.resetGame();
     this.startAnimationLoop();
   }
 
+  configureCanvasResolution() {
+    this.pixelRatio = clamp(window.devicePixelRatio || 1, 1, 2);
+    this.canvas.width = Math.round(this.boardWidth * this.pixelRatio);
+    this.canvas.height = Math.round(this.boardHeight * this.pixelRatio);
+    this.ctx.imageSmoothingEnabled = true;
+  }
+
   startAnimationLoop() {
+    const frameInterval = 1000 / 32;
     const step = (ts) => {
-      this.animTime = ts * 0.001;
+      if (!this.lastAnimationTs) this.lastAnimationTs = ts;
+      const deltaMs = ts - this.lastAnimationTs;
+      if (document.hidden) {
+        this.lastAnimationTs = ts;
+        this.animationFrame = window.requestAnimationFrame(step);
+        return;
+      }
+      if (deltaMs < frameInterval) {
+        this.animationFrame = window.requestAnimationFrame(step);
+        return;
+      }
+      this.lastAnimationTs = ts;
+      this.animTime += deltaMs * 0.001;
       this.drawCanvasScene();
       this.animationFrame = window.requestAnimationFrame(step);
     };
@@ -446,6 +471,14 @@ class ColonistFullGame {
     return this.players[this.currentPlayerIndex];
   }
 
+  getCanvasPoint(event) {
+    const rect = this.canvas.getBoundingClientRect();
+    return {
+      x: ((event.clientX - rect.left) * this.boardWidth) / rect.width,
+      y: ((event.clientY - rect.top) * this.boardHeight) / rect.height,
+    };
+  }
+
   screenToWorld(x, y) {
     return {
       x: (x - this.view.offsetX) / this.view.scale,
@@ -469,7 +502,7 @@ class ColonistFullGame {
 
   resetGame() {
     this.stopAiTurnLoop();
-    this.geometry = createBoardGeometry(this.canvas.width, this.canvas.height);
+    this.geometry = createBoardGeometry(this.boardWidth, this.boardHeight);
     this.robberHexId = assignTiles(this.geometry);
     this.ports = assignPorts(this.geometry);
     this.devDeck = createDevelopmentDeck();
@@ -634,9 +667,7 @@ class ColonistFullGame {
     const player = this.currentPlayer;
     if (!player || !player.isHuman || this.phase !== "main" || this.winner) return;
 
-    const rect = this.canvas.getBoundingClientRect();
-    const sx = ((event.clientX - rect.left) * this.canvas.width) / rect.width;
-    const sy = ((event.clientY - rect.top) * this.canvas.height) / rect.height;
+    const { x: sx, y: sy } = this.getCanvasPoint(event);
     const world = this.screenToWorld(sx, sy);
     const x = world.x;
     const y = world.y;
@@ -691,9 +722,7 @@ class ColonistFullGame {
   }
 
   handleCanvasMouseMove(event) {
-    const rect = this.canvas.getBoundingClientRect();
-    const sx = ((event.clientX - rect.left) * this.canvas.width) / rect.width;
-    const sy = ((event.clientY - rect.top) * this.canvas.height) / rect.height;
+    const { x: sx, y: sy } = this.getCanvasPoint(event);
     this.hoverPointer.x = sx;
     this.hoverPointer.y = sy;
 
@@ -701,13 +730,13 @@ class ColonistFullGame {
       this.view.offsetX = this.dragState.baseOffsetX + (sx - this.dragState.startX);
       this.view.offsetY = this.dragState.baseOffsetY + (sy - this.dragState.startY);
       this.canvas.style.cursor = "grabbing";
-      this.render();
+      this.drawCanvasScene();
       return;
     }
 
     const world = this.screenToWorld(sx, sy);
     this.updateHoverTargets(world.x, world.y);
-    this.render();
+    this.drawCanvasScene();
   }
 
   handleCanvasMouseLeave() {
@@ -716,17 +745,17 @@ class ColonistFullGame {
     this.hoverNodeId = null;
     this.hoverEdgeId = null;
     this.hoverTooltip = "";
-    this.canvas.style.cursor = "default";
-    this.render();
+    this.canvas.style.cursor = this.pendingAction ? "crosshair" : "grab";
+    this.drawCanvasScene();
   }
 
   handleCanvasMouseDown(event) {
     if (event.button !== 0) return;
     if (this.pendingAction) return;
     this.dragState.active = true;
-    const rect = this.canvas.getBoundingClientRect();
-    this.dragState.startX = ((event.clientX - rect.left) * this.canvas.width) / rect.width;
-    this.dragState.startY = ((event.clientY - rect.top) * this.canvas.height) / rect.height;
+    const { x: sx, y: sy } = this.getCanvasPoint(event);
+    this.dragState.startX = sx;
+    this.dragState.startY = sy;
     this.dragState.baseOffsetX = this.view.offsetX;
     this.dragState.baseOffsetY = this.view.offsetY;
     this.canvas.style.cursor = "grabbing";
@@ -736,19 +765,18 @@ class ColonistFullGame {
     if (!this.dragState.active) return;
     this.dragState.active = false;
     this.canvas.style.cursor = this.pendingAction ? "crosshair" : "grab";
+    this.drawCanvasScene();
   }
 
   handleCanvasWheel(event) {
     event.preventDefault();
-    const rect = this.canvas.getBoundingClientRect();
-    const sx = ((event.clientX - rect.left) * this.canvas.width) / rect.width;
-    const sy = ((event.clientY - rect.top) * this.canvas.height) / rect.height;
+    const { x: sx, y: sy } = this.getCanvasPoint(event);
     const before = this.screenToWorld(sx, sy);
-    const factor = event.deltaY < 0 ? 1.08 : 0.92;
-    this.view.scale = clamp(this.view.scale * factor, 0.75, 1.65);
+    const factor = event.deltaY < 0 ? 1.12 : 0.88;
+    this.view.scale = clamp(this.view.scale * factor, 0.45, 1.95);
     this.view.offsetX = sx - before.x * this.view.scale;
     this.view.offsetY = sy - before.y * this.view.scale;
-    this.render();
+    this.drawCanvasScene();
   }
 
   updateHoverTargets(worldX, worldY) {
@@ -1613,7 +1641,8 @@ class ColonistFullGame {
 
   drawBoardBackdrop() {
     const ctx = this.ctx;
-    const { width, height } = this.canvas;
+    const width = this.boardWidth;
+    const height = this.boardHeight;
     const t = this.animTime || 0;
 
     const sky = ctx.createLinearGradient(0, 0, 0, height);
@@ -2389,7 +2418,8 @@ class ColonistFullGame {
 
   drawCanvasScene() {
     if (!this.geometry) return;
-    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    this.ctx.setTransform(this.pixelRatio, 0, 0, this.pixelRatio, 0, 0);
+    this.ctx.clearRect(0, 0, this.boardWidth, this.boardHeight);
     this.drawBoardBackdrop();
     this.ctx.save();
     this.ctx.translate(this.view.offsetX, this.view.offsetY);
