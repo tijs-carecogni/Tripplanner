@@ -52,11 +52,27 @@ resource "azurerm_container_app_environment_storage" "tripmind_data" {
   access_mode                  = "ReadWrite"
 }
 
+data "azurerm_container_registry" "this" {
+  name                = var.acr_name
+  resource_group_name = azurerm_resource_group.this.name
+}
+
 resource "azurerm_container_app" "this" {
   name                         = var.container_app_name
   container_app_environment_id = azurerm_container_app_environment.this.id
   resource_group_name          = azurerm_resource_group.this.name
   revision_mode                = "Single"
+
+  registry {
+    server               = data.azurerm_container_registry.this.login_server
+    username             = data.azurerm_container_registry.this.admin_username
+    password_secret_name = "acr-password"
+  }
+
+  secret {
+    name  = "acr-password"
+    value = data.azurerm_container_registry.this.admin_password
+  }
 
   ingress {
     external_enabled = true

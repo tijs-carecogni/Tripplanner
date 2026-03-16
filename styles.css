@@ -20,13 +20,14 @@ body::after {
 .topbar {
   background: linear-gradient(135deg, var(--color-shell-bg), #2a2036);
   color: #f2f6ff;
-  padding: 0.76rem 0.9rem;
+  padding: 0.5rem 0.9rem;
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
   gap: 0.5rem;
   border-bottom: 1px solid var(--color-shell-border);
-  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   position: sticky;
   top: 0;
   z-index: 20;
@@ -34,9 +35,13 @@ body::after {
 
 .topbar h1 {
   margin: 0;
-  font-size: 1.18rem;
+  font-size: 1.05rem;
   font-weight: 700;
   letter-spacing: 0.01em;
+}
+
+.topbar-subtitle {
+  display: none;
 }
 
 .brand-lockup {
@@ -64,24 +69,24 @@ body::after {
 }
 
 .topbar p {
-  margin: 0.16rem 0 0;
-  font-size: 0.8rem;
-  opacity: 0.82;
+  margin: 0.1rem 0 0;
+  font-size: 0.74rem;
+  opacity: 0.75;
 }
 
 .status {
   background: var(--color-shell-elevated);
   border: 1px solid var(--color-shell-border);
   border-radius: 999px;
-  padding: 0.3rem 0.65rem;
+  padding: 0.22rem 0.5rem;
   min-width: 0;
-  max-width: 100%;
+  max-width: 50%;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   text-align: center;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
-  font-size: 0.74rem;
+  font-size: 0.68rem;
   font-weight: 600;
 }
 
@@ -109,6 +114,38 @@ body::after {
 }
 
 .mobile-view-tabs button.is-active {
+  background: var(--brand-1);
+  color: #f8fbff;
+  border-color: var(--brand-1);
+}
+
+.top-level-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.42rem;
+  padding: 0.42rem 0.7rem;
+  background: #f5f6f8;
+  border-bottom: 1px solid #e1e5eb;
+  position: sticky;
+  top: 48px;
+  z-index: 14;
+}
+
+.top-level-tabs button {
+  border-radius: 999px;
+  padding: 0.38rem 0.42rem;
+  font-size: 0.74rem;
+  font-weight: 600;
+  background: #ffffff;
+  color: #334155;
+  border: 1px solid #d2dae4;
+  box-shadow: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.top-level-tabs button.is-active {
   background: var(--brand-1);
   color: #f8fbff;
   border-color: var(--brand-1);
@@ -156,29 +193,217 @@ body::after {
   gap: 0.82rem;
 }
 
-.workspace {
-  order: 1;
+[data-tab-panel] {
+  display: none !important;
 }
 
-.sidebar {
+body[data-top-tab="start"] [data-tab-panel~="start"],
+body[data-top-tab="plan"] [data-tab-panel~="plan"],
+body[data-top-tab="explore"] [data-tab-panel~="explore"],
+body[data-top-tab="settings"] [data-tab-panel~="settings"] {
+  display: block !important;
+}
+
+/* Default mobile: overview (workspace) comes after chat (sidebar) on Start */
+.workspace {
   order: 2;
 }
 
-body[data-mobile-view="plan"] .sidebar {
+.sidebar {
+  order: 1;
+}
+
+body[data-top-tab="plan"][data-mobile-plan-view="list"] .map-card {
   display: none;
 }
 
-body[data-mobile-view="controls"] .workspace {
+body[data-top-tab="plan"][data-mobile-plan-view="map"] .itinerary-card,
+body[data-top-tab="plan"][data-mobile-plan-view="map"] .suggestions-card {
   display: none;
 }
 
-body[data-mobile-view="plan"][data-mobile-plan-view="list"] .map-card {
+body[data-top-tab="start"] .mobile-plan-tabs,
+body[data-top-tab="explore"] .mobile-plan-tabs,
+body[data-top-tab="settings"] .mobile-plan-tabs {
   display: none;
 }
 
-body[data-mobile-view="plan"][data-mobile-plan-view="map"] .itinerary-card,
-body[data-mobile-view="plan"][data-mobile-plan-view="map"] .suggestions-card {
+/* Top-level tabs replace the old mobile plan/controls switcher */
+.mobile-view-tabs {
+  display: none !important;
+}
+
+/* ── Chat card (primary interaction on Start) ── */
+.chat-card {
+  border-color: var(--brand-1);
+  border-width: 2px;
+}
+
+.chat-input-group {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: 0;
+}
+
+.chat-input-group textarea {
+  flex: 1;
+  border-radius: 12px 0 0 12px;
+  resize: vertical;
+  min-height: 72px;
+  font-size: 0.92rem;
+  padding: 0.6rem 0.7rem;
+  border-right: none;
+}
+
+.chat-send-btn {
+  border-radius: 0 12px 12px 0;
+  padding: 0 0.85rem;
+  min-height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--brand-1);
+  color: #fff;
+  border: 1px solid var(--brand-1);
+  border-left: none;
+  box-shadow: none;
+}
+
+.chat-send-btn:hover {
+  background: var(--brand-2);
+}
+
+.quick-prompts {
+  margin-bottom: 0.45rem;
+}
+
+.quick-prompt {
+  cursor: pointer;
+  background: #f3f0fa;
+  border-color: #d9cef0;
+  color: var(--color-brand-600);
+  font-weight: 600;
+  transition: background 0.12s ease;
+}
+
+.quick-prompt:hover {
+  background: #ebe4f8;
+}
+
+.chat-secondary-actions {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.45rem;
+}
+
+.chat-more-panel {
+  margin-top: 0.35rem;
+  padding: 0.55rem;
+  border: 1px solid #e2e7ef;
+  border-radius: 10px;
+  background: #f9fafb;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.chat-more-panel[hidden] {
   display: none;
+}
+
+.btn-secondary {
+  background: #f4f6fa;
+  color: #334155;
+  border-color: #d2dae4;
+  box-shadow: none;
+  font-weight: 600;
+}
+
+.btn-secondary:hover {
+  background: #edf0f6;
+  transform: translateY(-1px);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: #6b7280;
+  border-color: transparent;
+  box-shadow: none;
+  font-weight: 500;
+}
+
+.btn-ghost:hover {
+  background: #f4f6fa;
+  color: #334155;
+}
+
+/* ── Hard point form progressive disclosure ── */
+#hpMoreFields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+#hpMoreFields[hidden] {
+  display: none;
+}
+
+.hp-form-actions {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.hp-form-actions button[type="submit"] {
+  flex: 1;
+}
+
+/* ── Start overview card (merged guide + output) ── */
+.start-overview-card {
+  background: linear-gradient(180deg, #faf8ff, #ffffff);
+  border-color: #d9cef0;
+}
+
+.overview-steps {
+  display: flex;
+  gap: 0.35rem;
+  margin: 0.35rem 0 0.65rem;
+  flex-wrap: wrap;
+}
+
+.overview-step {
+  border-radius: 999px;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.74rem;
+  font-weight: 600;
+  background: #f0edf6;
+  color: #6b7280;
+  border: 1px solid #ddd6ea;
+}
+
+.overview-step.is-active {
+  background: var(--brand-1);
+  color: #fff;
+  border-color: var(--brand-1);
+}
+
+.overview-step.is-done {
+  background: #ecfaf1;
+  color: var(--color-success-text);
+  border-color: var(--color-success-border);
+}
+
+.overview-actions {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.overview-actions button {
+  font-size: 0.8rem;
+  padding: 0.38rem 0.65rem;
 }
 
 .card {
@@ -469,6 +694,30 @@ button:active {
   gap: 0.62rem;
 }
 
+.itinerary-chat-overview {
+  border: 1px solid #d8deea;
+  border-radius: 10px;
+  background: #fbfcff;
+  padding: 0.6rem 0.7rem;
+}
+
+.itinerary-chat-overview .subheader {
+  margin-top: 0;
+}
+
+.itinerary-chat-list {
+  display: grid;
+  gap: 0.4rem;
+  margin-top: 0.38rem;
+}
+
+.itinerary-chat-item {
+  border: 1px solid #dce2ee;
+  border-radius: 9px;
+  background: #ffffff;
+  padding: 0.46rem 0.54rem;
+}
+
 .itinerary-day-header {
   border: 1px solid #dbe3ed;
   background: linear-gradient(180deg, #f5f8fc, #f8fafc);
@@ -657,9 +906,157 @@ button:active {
 .itinerary-transit.transit-drive .transit-icon-wrap { color: #48634c; border-color: #cedccf; background: #f4f8f4; }
 .itinerary-transit.transit-walk .transit-icon-wrap { color: #5a4f74; border-color: #d6d1e6; background: #f7f5fb; }
 
+/* ── Option card layout (shared across all card types) ── */
+.option-card {
+  overflow: hidden;
+}
+
+.option-card-inner {
+  display: flex;
+  flex-direction: column;
+}
+
+.option-thumb {
+  width: 100%;
+  height: 120px;
+  border-radius: 8px;
+  margin-bottom: 0.55rem;
+  flex-shrink: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.option-thumb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  border-radius: inherit;
+}
+
+.option-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.option-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+}
+
+.option-head strong {
+  font-size: 0.95rem;
+  line-height: 1.25;
+}
+
+.option-score {
+  flex-shrink: 0;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 0.12rem 0.38rem;
+  border-radius: 999px;
+  background: #f0edf6;
+  color: var(--color-brand-600);
+  border: 1px solid #d9cef0;
+}
+
+.option-desc {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.option-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 0.35rem;
+}
+
+.option-actions button {
+  padding: 0.26rem 0.48rem;
+  font-size: 0.76rem;
+}
+
+.option-feedback-row {
+  display: flex;
+  gap: 0.3rem;
+  align-items: center;
+}
+
+.option-add-row {
+  display: flex;
+  gap: 0.3rem;
+  align-items: center;
+}
+
+.option-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 0.72rem;
+}
+
+/* Feedback buttons: Love / Maybe / No */
+.btn-love {
+  background: #ecfaf1;
+  color: #1d6a38;
+  border-color: #8fd5a8;
+  box-shadow: none;
+  font-weight: 600;
+  font-size: 0.76rem;
+  padding: 0.26rem 0.52rem;
+}
+.btn-love:hover { background: #d4f5e0; transform: none; }
+
+.btn-maybe {
+  background: #fff5e9;
+  color: #8c5a16;
+  border-color: #f2c98e;
+  box-shadow: none;
+  font-weight: 600;
+  font-size: 0.76rem;
+  padding: 0.26rem 0.52rem;
+}
+.btn-maybe:hover { background: #fee8cf; transform: none; }
+
+.btn-no {
+  background: #fff0f0;
+  color: #922;
+  border-color: #f2b5b5;
+  box-shadow: none;
+  font-weight: 600;
+  font-size: 0.76rem;
+  padding: 0.26rem 0.52rem;
+}
+.btn-no:hover { background: #ffe0e0; transform: none; }
+
+/* Rating buttons */
+.btn-rate {
+  background: #f4f6fa;
+  color: #475569;
+  border-color: #d2dae4;
+  box-shadow: none;
+  font-weight: 700;
+  font-size: 0.74rem;
+  padding: 0.22rem 0.44rem;
+  min-width: 30px;
+  text-align: center;
+}
+.btn-rate:hover { background: #edf0f6; transform: none; }
+.btn-rate.is-rated {
+  background: #f0edf6;
+  color: var(--color-brand-600);
+  border-color: #d9cef0;
+}
+
 .suggestions {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 0.72rem;
 }
 
@@ -806,6 +1203,10 @@ button:active {
   background: #f8fafc;
   font-size: 0.84rem;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.memory-summary:empty {
+  display: none;
 }
 
 .conversation {
@@ -1204,8 +1605,19 @@ button:active {
     display: none;
   }
 
+  .top-level-tabs {
+    top: 62px;
+    padding: 0.5rem 1.05rem;
+    gap: 0.5rem;
+  }
+
+  .top-level-tabs button {
+    font-size: 0.84rem;
+    padding: 0.46rem 0.72rem;
+  }
+
   .topbar {
-    padding: 1.05rem 1.25rem;
+    padding: 0.65rem 1.25rem;
     flex-direction: row;
     align-items: center;
     justify-content: space-between;
@@ -1213,24 +1625,28 @@ button:active {
   }
 
   .topbar h1 {
-    font-size: 1.44rem;
+    font-size: 1.28rem;
+  }
+
+  .topbar-subtitle {
+    display: block;
   }
 
   .topbar p {
-    margin: 0.3rem 0 0;
-    font-size: 0.86rem;
-    opacity: 0.88;
+    margin: 0.18rem 0 0;
+    font-size: 0.8rem;
+    opacity: 0.82;
   }
 
   .status {
-    padding: 0.42rem 0.78rem;
+    padding: 0.36rem 0.78rem;
     min-width: 180px;
-    font-size: 0.8rem;
+    font-size: 0.78rem;
   }
 
   .layout {
     display: grid;
-    grid-template-columns: minmax(320px, 380px) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
     gap: 1.1rem;
     padding: 1.05rem;
     max-width: 1720px;
@@ -1238,18 +1654,37 @@ button:active {
 
   .workspace,
   .sidebar {
+    display: flex;
+  }
+
+  /* Start tab: chat (sidebar) gets the wide column, overview on right */
+  body[data-top-tab="start"] .sidebar {
     order: 0;
-    display: flex;
+  }
+  body[data-top-tab="start"] .workspace {
+    order: 1;
   }
 
-  body[data-mobile-view="plan"] .sidebar,
-  body[data-mobile-view="controls"] .workspace {
-    display: flex;
+  /* Other tabs: sidebar on left, workspace on right */
+  body[data-top-tab="plan"] .layout,
+  body[data-top-tab="explore"] .layout,
+  body[data-top-tab="settings"] .layout {
+    grid-template-columns: minmax(320px, 380px) minmax(0, 1fr);
+  }
+  body[data-top-tab="plan"] .sidebar,
+  body[data-top-tab="explore"] .sidebar,
+  body[data-top-tab="settings"] .sidebar {
+    order: 0;
+  }
+  body[data-top-tab="plan"] .workspace,
+  body[data-top-tab="explore"] .workspace,
+  body[data-top-tab="settings"] .workspace {
+    order: 1;
   }
 
-  body[data-mobile-view="plan"][data-mobile-plan-view="list"] .map-card,
-  body[data-mobile-view="plan"][data-mobile-plan-view="map"] .itinerary-card,
-  body[data-mobile-view="plan"][data-mobile-plan-view="map"] .suggestions-card {
+  body[data-top-tab="plan"][data-mobile-plan-view="list"] .map-card,
+  body[data-top-tab="plan"][data-mobile-plan-view="map"] .itinerary-card,
+  body[data-top-tab="plan"][data-mobile-plan-view="map"] .suggestions-card {
     display: block;
   }
 
@@ -1280,6 +1715,12 @@ button:active {
     align-items: start;
   }
 
+  /* Start tab: workspace is a simple single column (no map/itinerary grid) */
+  body[data-top-tab="start"] .workspace {
+    display: flex;
+    flex-direction: column;
+  }
+
   .workspace > .visual-board-card {
     grid-column: 1 / -1;
   }
@@ -1298,7 +1739,7 @@ button:active {
     grid-column: 2;
     grid-row: 2 / span 2;
     position: sticky;
-    top: 112px;
+    top: 100px;
   }
 
   #map {
@@ -1311,5 +1752,13 @@ button:active {
 
   .possible-card {
     flex: 0 0 330px;
+  }
+
+  .chat-input-group textarea {
+    min-height: 84px;
+  }
+
+  .quick-prompts {
+    margin-bottom: 0.55rem;
   }
 }

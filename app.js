@@ -28,12 +28,59 @@ import {
 
 const els = {};
 let map;
+
+function getPlaceImageUrl(title, city, width = 400, height = 240) {
+  const query = encodeURIComponent(`${title} ${city || ""} travel`.trim());
+  return `https://loremflickr.com/${width}/${height}/${query}?lock=${hashCode(title + (city || ""))}`;
+}
+
+function hashCode(str) {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) {
+    h = ((h << 5) - h + str.charCodeAt(i)) | 0;
+  }
+  return Math.abs(h);
+}
+
+function buildOptionCardHtml(option, actions, { showImage = true } = {}) {
+  const imgUrl = showImage ? getPlaceImageUrl(option.title, option.city) : "";
+  const tags = (option.tags || []).map((tag) => `<span class="chip">${htmlEscape(tag)}</span>`).join("");
+  const desc = option.reason || option.description || "";
+  const meta = [option.kind || option.type || "option", option.city || ""].filter(Boolean).join(" · ");
+  const scoreHtml = option.score != null ? `<span class="option-score">${option.score.toFixed(1)}</span>` : "";
+  const fallbackGradient = getPlaceholderGradient(option.title);
+
+  return `
+    <div class="option-card-inner">
+      ${showImage ? `<div class="option-thumb" style="background:${fallbackGradient}">
+        <img src="${imgUrl}" alt="" loading="lazy" class="option-thumb-img"
+          onerror="this.style.display='none'">
+      </div>` : ""}
+      <div class="option-body">
+        <div class="option-head">
+          <strong>${htmlEscape(option.title)}</strong>
+          ${scoreHtml}
+        </div>
+        <div class="meta">${htmlEscape(meta)}</div>
+        ${desc ? `<div class="meta option-desc">${htmlEscape(desc)}</div>` : ""}
+        ${tags ? `<div class="chip-list">${tags}</div>` : ""}
+        <div class="option-actions">${actions}</div>
+      </div>
+    </div>
+  `;
+}
+
+function getPlaceholderGradient(title) {
+  const h = hashCode(title) % 360;
+  return `linear-gradient(135deg, hsl(${h}, 35%, 78%), hsl(${(h + 40) % 360}, 30%, 68%))`;
+}
 let layers;
 let state = loadState();
 const interactionController = createHighlightController();
 const SIDEBAR_COLLAPSE_STORAGE_KEY = "mindtrip_sidebar_collapse_v1";
 const MOBILE_VIEW_STORAGE_KEY = "mindtrip_mobile_view_v1";
 const MOBILE_PLAN_VIEW_STORAGE_KEY = "mindtrip_mobile_plan_view_v1";
+const TOP_TAB_STORAGE_KEY = "mindtrip_top_tab_v1";
 const VISUAL_BOARD_COLLAPSE_STORAGE_KEY = "mindtrip_visual_board_collapsed_v1";
 const ITINERARY_COLLAPSE_STORAGE_KEY = "mindtrip_itinerary_collapsed_days_v1";
 const SYNC_CONFIG_STORAGE_KEY = "mindtrip_sync_config_v1";
@@ -313,6 +360,22 @@ function bindElements() {
     "mobileViewTabs",
     "mobileTabPlan",
     "mobileTabControls",
+    "topLevelTabs",
+    "topTabStart",
+    "topTabPlan",
+    "topTabExplore",
+    "topTabSettings",
+    "goPlanBtn",
+    "goPlanFromOutputBtn",
+    "goSettingsBtn",
+    "chatFlowSummary",
+    "startOutputSummary",
+    "quickPrompts",
+    "chatMoreActionsBtn",
+    "chatMoreActionsPanel",
+    "hpToggleMore",
+    "hpMoreFields",
+    "workflowNextBtn",
     "mobilePlanTabs",
     "mobilePlanMap",
     "mobilePlanList",
@@ -474,6 +537,56 @@ function bindEvents() {
   if (els.mobileViewTabs) {
     els.mobileViewTabs.addEventListener("click", handleMobileViewToggle);
   }
+  if (els.topLevelTabs) {
+    els.topLevelTabs.addEventListener("click", handleTopTabToggle);
+  }
+  if (els.goPlanBtn) {
+    els.goPlanBtn.addEventListener("click", handleGoToPlan);
+  }
+  if (els.goPlanFromOutputBtn) {
+    els.goPlanFromOutputBtn.addEventListener("click", handleGoToPlan);
+  }
+  if (els.goSettingsBtn) {
+    els.goSettingsBtn.addEventListener("click", handleGoToManualSettings);
+  }
+  if (els.quickPrompts) {
+    els.quickPrompts.addEventListener("click", (e) => {
+      const chip = e.target.closest(".quick-prompt");
+      if (!chip) return;
+      const prompt = chip.dataset.prompt;
+      if (prompt && els.conversationInput) {
+        els.conversationInput.value = prompt;
+        els.conversationInput.focus();
+      }
+    });
+  }
+  if (els.chatMoreActionsBtn) {
+    els.chatMoreActionsBtn.addEventListener("click", () => {
+      const panel = els.chatMoreActionsPanel;
+      if (!panel) return;
+      const isHidden = panel.hidden;
+      panel.hidden = !isHidden;
+      els.chatMoreActionsBtn.textContent = isHidden ? "Less actions \u25B4" : "More actions \u25BE";
+    });
+  }
+  if (els.hpToggleMore) {
+    els.hpToggleMore.addEventListener("click", () => {
+      const fields = els.hpMoreFields;
+      if (!fields) return;
+      const isHidden = fields.hidden;
+      fields.hidden = !isHidden;
+      els.hpToggleMore.textContent = isHidden ? "Less details \u25B4" : "More details \u25BE";
+    });
+  }
+  if (els.workflowNextBtn) {
+    els.workflowNextBtn.addEventListener("click", () => {
+      if (state.outlineDraft?.blocks?.length) {
+        handleSuggestFillStrategies();
+      } else {
+        handleGenerateRoughOutline();
+      }
+    });
+  }
   if (els.mobilePlanTabs) {
     els.mobilePlanTabs.addEventListener("click", handleMobilePlanViewToggle);
   }
@@ -570,6 +683,8 @@ function hydrateLlmForm() {
 function renderAll() {
   renderMemorySummary();
   renderTripContextSummary();
+  renderChatFlowSummary();
+  renderStartOutputSummary();
   renderExpertSettingsSummary();
   renderConversation();
   renderConversationInsights();
@@ -658,7 +773,10 @@ function setupSidebarCollapsibles() {
     toggle.className = "card-collapse-btn";
     row.appendChild(toggle);
 
-    const defaultCollapsed = isMobileViewport ? index >= 1 : index >= 3;
+    const headingLabel = heading.textContent.trim().toLowerCase();
+    const keepOpenByDefault = headingLabel.includes("trip chat")
+      || headingLabel.includes("conversation copilot");
+    const defaultCollapsed = keepOpenByDefault ? false : (isMobileViewport ? index >= 1 : index >= 3);
     const initialCollapsed = typeof collapseState[cardKey] === "boolean"
       ? collapseState[cardKey]
       : defaultCollapsed;
@@ -681,6 +799,75 @@ function setupSidebarCollapsibles() {
 
     card.dataset.collapsibleReady = "true";
   });
+}
+
+function applyTopTab(tab) {
+  const normalized = tab === "plan" || tab === "explore" || tab === "settings" ? tab : "start";
+  document.body.dataset.topTab = normalized;
+  if (els.topTabStart) {
+    const active = normalized === "start";
+    els.topTabStart.classList.toggle("is-active", active);
+    els.topTabStart.setAttribute("aria-pressed", active ? "true" : "false");
+  }
+  if (els.topTabPlan) {
+    const active = normalized === "plan";
+    els.topTabPlan.classList.toggle("is-active", active);
+    els.topTabPlan.setAttribute("aria-pressed", active ? "true" : "false");
+  }
+  if (els.topTabExplore) {
+    const active = normalized === "explore";
+    els.topTabExplore.classList.toggle("is-active", active);
+    els.topTabExplore.setAttribute("aria-pressed", active ? "true" : "false");
+  }
+  if (els.topTabSettings) {
+    const active = normalized === "settings";
+    els.topTabSettings.classList.toggle("is-active", active);
+    els.topTabSettings.setAttribute("aria-pressed", active ? "true" : "false");
+  }
+
+}
+
+function initializeTopTab() {
+  let savedTab = "start";
+  try {
+    const stored = localStorage.getItem(TOP_TAB_STORAGE_KEY);
+    if (stored === "start" || stored === "plan" || stored === "explore" || stored === "settings") {
+      savedTab = stored;
+    }
+  } catch {
+    savedTab = "start";
+  }
+  applyTopTab(savedTab);
+}
+
+function handleTopTabToggle(event) {
+  const button = event.target.closest("button[data-top-tab]");
+  if (!button) return;
+  const nextTab = button.dataset.topTab || "start";
+  applyTopTab(nextTab);
+  try {
+    localStorage.setItem(TOP_TAB_STORAGE_KEY, nextTab);
+  } catch {
+    // ignore storage failures
+  }
+}
+
+function handleGoToManualSettings() {
+  applyTopTab("settings");
+  try {
+    localStorage.setItem(TOP_TAB_STORAGE_KEY, "settings");
+  } catch {
+    // ignore storage failures
+  }
+}
+
+function handleGoToPlan() {
+  applyTopTab("plan");
+  try {
+    localStorage.setItem(TOP_TAB_STORAGE_KEY, "plan");
+  } catch {
+    // ignore storage failures
+  }
 }
 
 function applyMobileView(view) {
@@ -913,6 +1100,64 @@ function renderTripContextSummary() {
   `;
 }
 
+function renderChatFlowSummary() {
+  if (!els.chatFlowSummary) return;
+  const trip = state.tripContext || {};
+  const likes = Object.entries(state.conversation?.learnedLikes || {})
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([tag]) => tag);
+  const tripRange = trip.startDate
+    ? `${trip.startDate}${trip.endDate ? ` to ${trip.endDate}` : ""}`
+    : "not set";
+
+  const hasContext = trip.primaryDestination || trip.startDate;
+  const hasAnchors = state.hardPoints.length > 0;
+  const hasPlan = getTimelineItems().length > 0;
+
+  els.chatFlowSummary.innerHTML = `
+    <div><strong>Destination:</strong> ${htmlEscape(trip.primaryDestination || "not set")} &middot; <strong>Dates:</strong> ${htmlEscape(tripRange)}</div>
+    <div><strong>Likes:</strong> ${htmlEscape(likes.join(", ") || "none yet")} &middot; <strong>Anchors:</strong> ${state.hardPoints.length}</div>
+  `;
+
+  updateOverviewSteps(hasContext, hasAnchors, hasPlan);
+}
+
+function updateOverviewSteps(hasContext, hasAnchors, hasPlan) {
+  const steps = document.querySelectorAll(".overview-step");
+  steps.forEach((step) => {
+    step.classList.remove("is-active", "is-done");
+    const s = step.dataset.step;
+    if (s === "chat") {
+      step.classList.add(hasContext ? "is-done" : "is-active");
+    } else if (s === "anchor") {
+      step.classList.add(hasAnchors ? "is-done" : (hasContext ? "is-active" : ""));
+    } else if (s === "refine") {
+      step.classList.add(hasPlan ? "is-done" : (hasAnchors ? "is-active" : ""));
+    }
+  });
+}
+
+function renderStartOutputSummary() {
+  if (!els.startOutputSummary) return;
+  const chatCandidates = getLatestChatCandidates(4);
+  const timelineItems = getTimelineItems();
+  const nextTimeline = timelineItems.slice(0, 3);
+
+  if (!chatCandidates.length && !timelineItems.length) {
+    els.startOutputSummary.innerHTML = `
+      <div style="color:#6b7280">Start chatting to generate suggestions and build your itinerary.</div>
+    `;
+    return;
+  }
+
+  els.startOutputSummary.innerHTML = `
+    ${chatCandidates.length ? `<div><strong>Suggestions:</strong> ${chatCandidates.map((item) => htmlEscape(item.title)).join(" &middot; ")}</div>` : ""}
+    ${nextTimeline.length ? `<div><strong>Itinerary:</strong> ${nextTimeline.map((item) => htmlEscape(item.title)).join(" &rarr; ")}</div>` : ""}
+    <div><strong>Items:</strong> ${timelineItems.length} planned &middot; ${state.hardPoints.length} anchored</div>
+  `;
+}
+
 function renderExpertSettingsSummary() {
   const settings = state.expertSettings || createDefaultState().expertSettings;
   els.expertSettingsSummary.innerHTML = `
@@ -1030,30 +1275,31 @@ function renderConversation() {
     .map((message) => {
       const options = Array.isArray(message.options) ? message.options : [];
       const optionsHtml = options.length
-        ? `<div class="results">
-            ${options.map((option) => `
-              <div class="result-card"
+        ? `<div class="results option-grid">
+            ${options.map((option) => {
+              const feedbackBtns = `
+                <div class="option-feedback-row">
+                  <button type="button" class="btn-love" data-action="option-feedback" data-message-id="${message.id}" data-option-id="${option.id}" data-feedback="love">&#9829; Love</button>
+                  <button type="button" class="btn-maybe" data-action="option-feedback" data-message-id="${message.id}" data-option-id="${option.id}" data-feedback="maybe">~ Maybe</button>
+                  <button type="button" class="btn-no" data-action="option-feedback" data-message-id="${message.id}" data-option-id="${option.id}" data-feedback="no">&#10005; No</button>
+                </div>
+                <div class="option-add-row">
+                  ${option.kind === "outline-block"
+                    ? `<button type="button" class="btn-secondary" data-action="option-dive-block" data-message-id="${message.id}" data-option-id="${option.id}">Dive in</button>`
+                    : option.kind === "strategy"
+                    ? `<button type="button" class="btn-secondary" data-action="option-use-strategy" data-message-id="${message.id}" data-option-id="${option.id}">Use strategy</button>`
+                    : `<button type="button" class="btn-secondary" data-action="option-soft-poi" data-message-id="${message.id}" data-option-id="${option.id}">+ Add</button>
+                       <button type="button" class="btn-ghost" data-action="option-interleave" data-message-id="${message.id}" data-option-id="${option.id}">Interleave</button>
+                       <button type="button" class="btn-ghost" data-action="option-lock" data-message-id="${message.id}" data-option-id="${option.id}">Lock</button>`
+                  }
+                </div>`;
+              return `
+              <div class="result-card option-card"
                 ${option.entityKey ? `data-entity-key="${htmlEscape(option.entityKey)}"` : ""}
                 ${option.linkKey ? `data-entity-link="${htmlEscape(option.linkKey)}"` : ""}>
-                <strong>${htmlEscape(option.title)}</strong>
-                <div class="meta">${htmlEscape(option.kind || "option")} | ${htmlEscape(option.city || "city not set")}</div>
-                <div class="meta">${htmlEscape(option.reason || option.description || "")}</div>
-                <div class="chip-list">${(option.tags || []).map((tag) => `<span class="chip">${htmlEscape(tag)}</span>`).join("")}</div>
-                <div class="item-actions">
-                  <button type="button" data-action="option-feedback" data-message-id="${message.id}" data-option-id="${option.id}" data-feedback="love">Love</button>
-                  <button type="button" data-action="option-feedback" data-message-id="${message.id}" data-option-id="${option.id}" data-feedback="maybe">Maybe</button>
-                  <button type="button" data-action="option-feedback" data-message-id="${message.id}" data-option-id="${option.id}" data-feedback="no">No</button>
-                  ${option.kind === "outline-block"
-                    ? `<button type="button" data-action="option-dive-block" data-message-id="${message.id}" data-option-id="${option.id}">Dive into this point</button>`
-                    : option.kind === "strategy"
-                    ? `<button type="button" data-action="option-use-strategy" data-message-id="${message.id}" data-option-id="${option.id}">Use strategy</button>`
-                    : `<button type="button" data-action="option-soft-poi" data-message-id="${message.id}" data-option-id="${option.id}">Soft add POI</button>
-                       <button type="button" data-action="option-interleave" data-message-id="${message.id}" data-option-id="${option.id}">Interleave</button>
-                       <button type="button" data-action="option-lock" data-message-id="${message.id}" data-option-id="${option.id}">Lock</button>`
-                  }
-                </div>
-              </div>
-            `).join("")}
+                ${buildOptionCardHtml(option, feedbackBtns)}
+              </div>`;
+            }).join("")}
           </div>`
         : "";
       return `
@@ -1081,6 +1327,44 @@ function renderConversationInsights() {
     <div><strong>General strategy:</strong> ${htmlEscape(generalStrategy)} | <strong>Focused point:</strong> ${htmlEscape(focusedBlock)} | <strong>Point tweaks:</strong> ${tweakCount}</div>
     <div><strong>Learned likes:</strong> ${htmlEscape(likeEntries.map(([tag]) => tag).join(", ") || "none yet")}</div>
     <div><strong>Learned dislikes:</strong> ${htmlEscape(dislikeEntries.map(([tag]) => tag).join(", ") || "none yet")}</div>
+  `;
+}
+
+function getLatestChatCandidates(limit = 6) {
+  const latestAssistantWithOptions = [...(state.conversation.messages || [])]
+    .reverse()
+    .find((message) => message?.role === "assistant" && Array.isArray(message.options) && message.options.length);
+  if (!latestAssistantWithOptions) return [];
+  return latestAssistantWithOptions.options
+    .map((option, index) => ({
+      id: option.id || `chat-option-${index}`,
+      title: String(option.title || "Chat suggestion"),
+      kind: String(option.kind || "option"),
+      city: String(option.city || ""),
+      reason: String(option.reason || option.description || ""),
+      lat: Number(option.lat),
+      lng: Number(option.lng),
+      linkKey: String(option.linkKey || buildEntityLinkKey(option)).trim(),
+    }))
+    .slice(0, Math.max(1, limit));
+}
+
+function renderChatCandidateOverview(candidates) {
+  if (!candidates.length) return "";
+  return `
+    <article class="itinerary-chat-overview">
+      <h3 class="subheader">Latest Chat Suggestions</h3>
+      <div class="meta">From your last planner reply. Use chat actions (Interleave/Lock) to commit them.</div>
+      <div class="itinerary-chat-list">
+        ${candidates.map((item) => `
+          <div class="itinerary-chat-item" data-entity-key="${htmlEscape(item.id)}" data-entity-link="${htmlEscape(item.linkKey)}">
+            <strong>${htmlEscape(item.title)}</strong>
+            <div class="meta">${htmlEscape(item.kind)}${item.city ? ` | ${htmlEscape(item.city)}` : ""}</div>
+            ${item.reason ? `<div class="meta">${htmlEscape(item.reason)}</div>` : ""}
+          </div>
+        `).join("")}
+      </div>
+    </article>
   `;
 }
 
@@ -1116,12 +1400,16 @@ function renderSoftPois() {
         <h4>${htmlEscape(poi.title)}</h4>
         <div class="meta">${htmlEscape(poi.kind)} | ${htmlEscape(poi.city || "Unknown city")}</div>
         ${poi.notes ? `<div class="meta">${htmlEscape(poi.notes)}</div>` : ""}
-        <div class="item-actions">
-          <button type="button" data-action="poi-interleave" data-id="${poi.id}">Interleave</button>
-          <button type="button" data-action="poi-lock" data-id="${poi.id}">Lock</button>
-          <button type="button" data-action="poi-rate" data-id="${poi.id}" data-rating="4">Rate 4</button>
-          <button type="button" data-action="poi-rate" data-id="${poi.id}" data-rating="5">Rate 5</button>
-          <button type="button" data-action="poi-remove" data-id="${poi.id}">Remove</button>
+        <div class="option-actions">
+          <div class="option-add-row">
+            <button type="button" class="btn-secondary" data-action="poi-interleave" data-id="${poi.id}">+ Add</button>
+            <button type="button" class="btn-ghost" data-action="poi-lock" data-id="${poi.id}">Lock</button>
+            <button type="button" class="btn-no" data-action="poi-remove" data-id="${poi.id}">Remove</button>
+          </div>
+          <div class="option-feedback-row">
+            <button type="button" class="btn-rate" data-action="poi-rate" data-id="${poi.id}" data-rating="4">4</button>
+            <button type="button" class="btn-rate" data-action="poi-rate" data-id="${poi.id}" data-rating="5">5</button>
+          </div>
         </div>
       </li>
     `)
@@ -1187,6 +1475,71 @@ async function handleSoftPoiAction(event) {
   }
 }
 
+function applyContextDirectivesFromConversation(text) {
+  const raw = String(text || "").trim();
+  if (!raw) return false;
+  const lines = raw.split(/\n+/).map((line) => line.trim()).filter(Boolean);
+  let changed = false;
+
+  const setDateRange = (value) => {
+    const match = value.match(/(\d{4}-\d{2}-\d{2})\s*(?:to|until|-)\s*(\d{4}-\d{2}-\d{2})/i);
+    if (!match) return;
+    state.tripContext.startDate = match[1];
+    state.tripContext.endDate = match[2];
+    changed = true;
+  };
+
+  lines.forEach((line) => {
+    const lower = line.toLowerCase();
+    if (lower.startsWith("destination:") || lower.startsWith("primary destination:")) {
+      state.tripContext.primaryDestination = line.split(":").slice(1).join(":").trim();
+      changed = true;
+      return;
+    }
+    if (lower.startsWith("dates:") || lower.startsWith("date range:") || lower.startsWith("trip dates:")) {
+      setDateRange(line.split(":").slice(1).join(":").trim());
+      return;
+    }
+    if (lower.startsWith("must include:") || lower.startsWith("must-have:") || lower.startsWith("must haves:")) {
+      state.tripContext.mustInclude = parseTags(line.split(":").slice(1).join(":"));
+      changed = true;
+      return;
+    }
+    if (lower.startsWith("avoid:") || lower.startsWith("dont want:") || lower.startsWith("don't want:")) {
+      state.tripContext.avoid = parseTags(line.split(":").slice(1).join(":"));
+      changed = true;
+      return;
+    }
+    if (lower.startsWith("style:") || lower.startsWith("notes:")) {
+      state.tripContext.styleNotes = line.split(":").slice(1).join(":").trim();
+      changed = true;
+      return;
+    }
+    if (lower.startsWith("user id:")) {
+      syncConfig.userId = line.split(":").slice(1).join(":").trim();
+      changed = true;
+      return;
+    }
+    if (lower.startsWith("trip id:")) {
+      syncConfig.tripId = line.split(":").slice(1).join(":").trim();
+      changed = true;
+      return;
+    }
+    if (lower.startsWith("sync:")) {
+      const v = line.split(":").slice(1).join(":").trim().toLowerCase();
+      syncConfig.autoSync = !(v === "off" || v === "false" || v === "no");
+      changed = true;
+    }
+  });
+
+  if (changed) {
+    saveSyncConfig();
+    hydrateSyncForm();
+    hydrateTripContextForm();
+  }
+  return changed;
+}
+
 async function handleConversationSubmit(event) {
   event.preventDefault();
   const text = els.conversationInput.value.trim();
@@ -1196,6 +1549,7 @@ async function handleConversationSubmit(event) {
   pushConversationMessage("user", text);
   els.conversationForm.reset();
   applyDirectPreferenceFromMessage(text);
+  const contextChanged = applyContextDirectivesFromConversation(text);
   storeTripIdeasFromMessage(text, { onlyIfInitial: !hadUserMessages });
   const quickHandled = await tryHandleQuickConversationCommands(text);
   if (quickHandled) {
@@ -1207,7 +1561,9 @@ async function handleConversationSubmit(event) {
   renderConversation();
   renderConversationInsights();
 
-  setStatus("Planner is thinking through your preferences...");
+  setStatus(contextChanged
+    ? "Context updated from chat. Planner is thinking through your preferences..."
+    : "Planner is thinking through your preferences...");
   try {
     const reply = await generateConversationReply(text);
     applyConversationInference(reply.inferredLikes || [], reply.inferredDislikes || [], "conversation-inference");
@@ -2235,19 +2591,21 @@ function renderUnifiedResults() {
     els.unifiedRouteResults.innerHTML = "<div class='result-card'>No route-level results yet.</div>";
   } else {
     els.unifiedRouteResults.innerHTML = routeNodes
-      .map((item) => `
-        <article class="result-card" data-entity-key="${htmlEscape(item.id)}" data-entity-link="${htmlEscape(buildEntityLinkKey(item))}">
-          <strong>${htmlEscape(item.title)}</strong>
-          <div class="meta">${htmlEscape(item.kind || item.category || "route-node")} | ${htmlEscape(item.city || "Unknown city")}</div>
-          <div class="meta">${htmlEscape(item.description || item.reason || "Route-level candidate")}</div>
-          <div class="item-actions">
-            <button type="button" data-action="add-route-node" data-id="${item.id}">Add to active set</button>
-            <button type="button" data-action="lock-route-node" data-id="${item.id}">Lock as hard point</button>
-            <button type="button" data-action="rate-route-node" data-id="${item.id}" data-rating="4">Rate 4</button>
-            <button type="button" data-action="rate-route-node" data-id="${item.id}" data-rating="5">Rate 5</button>
+      .map((item) => {
+        const actions = `
+          <div class="option-add-row">
+            <button type="button" class="btn-secondary" data-action="add-route-node" data-id="${item.id}">+ Add to set</button>
+            <button type="button" class="btn-ghost" data-action="lock-route-node" data-id="${item.id}">Lock</button>
           </div>
-        </article>
-      `)
+          <div class="option-feedback-row">
+            <button type="button" class="btn-rate" data-action="rate-route-node" data-id="${item.id}" data-rating="4">4</button>
+            <button type="button" class="btn-rate" data-action="rate-route-node" data-id="${item.id}" data-rating="5">5</button>
+          </div>`;
+        return `
+        <article class="result-card option-card" data-entity-key="${htmlEscape(item.id)}" data-entity-link="${htmlEscape(buildEntityLinkKey(item))}">
+          ${buildOptionCardHtml(item, actions)}
+        </article>`;
+      })
       .join("");
   }
 
@@ -2256,20 +2614,22 @@ function renderUnifiedResults() {
     return;
   }
   els.unifiedDetailResults.innerHTML = detailStops
-    .map((item) => `
-      <article class="result-card" data-entity-key="${htmlEscape(item.id)}" data-entity-link="${htmlEscape(buildEntityLinkKey(item))}">
-        <strong>${htmlEscape(item.title)}</strong>
-        <div class="meta">${htmlEscape(item.kind || item.category || "detail")} | ${htmlEscape(item.city || "Unknown city")}</div>
-        <div class="meta">${htmlEscape(item.description || item.reason || "Detail place/event candidate")}</div>
-        <div class="item-actions">
-          <button type="button" data-action="interleave-detail" data-id="${item.id}">Interleave detail stop</button>
-          <button type="button" data-action="lock-detail" data-id="${item.id}">Lock as hard point</button>
-          <button type="button" data-action="rate-detail" data-id="${item.id}" data-rating="3">Rate 3</button>
-          <button type="button" data-action="rate-detail" data-id="${item.id}" data-rating="4">Rate 4</button>
-          <button type="button" data-action="rate-detail" data-id="${item.id}" data-rating="5">Rate 5</button>
+    .map((item) => {
+      const actions = `
+        <div class="option-add-row">
+          <button type="button" class="btn-secondary" data-action="interleave-detail" data-id="${item.id}">+ Add</button>
+          <button type="button" class="btn-ghost" data-action="lock-detail" data-id="${item.id}">Lock</button>
         </div>
-      </article>
-    `)
+        <div class="option-feedback-row">
+          <button type="button" class="btn-rate" data-action="rate-detail" data-id="${item.id}" data-rating="3">3</button>
+          <button type="button" class="btn-rate" data-action="rate-detail" data-id="${item.id}" data-rating="4">4</button>
+          <button type="button" class="btn-rate" data-action="rate-detail" data-id="${item.id}" data-rating="5">5</button>
+        </div>`;
+      return `
+      <article class="result-card option-card" data-entity-key="${htmlEscape(item.id)}" data-entity-link="${htmlEscape(buildEntityLinkKey(item))}">
+        ${buildOptionCardHtml(item, actions)}
+      </article>`;
+    })
     .join("");
 }
 
@@ -2440,8 +2800,10 @@ function renderRouteSelectors() {
 
 function renderItinerary() {
   const timeline = getTimelineItems();
+  const chatCandidates = getLatestChatCandidates(5);
+  const chatOverviewHtml = renderChatCandidateOverview(chatCandidates);
   if (!timeline.length) {
-    els.itineraryList.innerHTML = "Add hard points and interleaved items to build your timeline.";
+    els.itineraryList.innerHTML = `${chatOverviewHtml}<div class="meta">Add hard points and interleaved items to build your timeline.</div>`;
     return;
   }
 
@@ -2493,7 +2855,7 @@ function renderItinerary() {
     `);
   });
 
-  els.itineraryList.innerHTML = blocks.join("");
+  els.itineraryList.innerHTML = `${chatOverviewHtml}${blocks.join("")}`;
 }
 
 function renderTimelinePointBlock(point, pointNumber) {
@@ -2642,23 +3004,22 @@ function renderSuggestions() {
   els.suggestionList.innerHTML = personalized
     .map((item) => {
       const existingRating = state.memory.itemRatings[item.id];
-      const ratingText = existingRating ? `Remembered rating ${existingRating}/5` : "Not rated yet";
-      return `
-      <article class="suggestion-card" data-entity-key="${htmlEscape(item.id)}" data-entity-link="${htmlEscape(buildEntityLinkKey(item))}">
-        <h4>${htmlEscape(item.title)}</h4>
-        <div class="meta">${htmlEscape(item.city)} | ${htmlEscape(item.type)} | score ${item.score.toFixed(1)}</div>
-        <div class="meta">${htmlEscape(item.description || "No description")}</div>
-        <div class="chip-list">${item.tags.map((tag) => `<span class="chip">${htmlEscape(tag)}</span>`).join("")}</div>
-        <div class="meta">${ratingText}</div>
-        <div class="item-actions">
-          <button type="button" data-action="rate-suggestion" data-id="${item.id}" data-rating="2">2</button>
-          <button type="button" data-action="rate-suggestion" data-id="${item.id}" data-rating="3">3</button>
-          <button type="button" data-action="rate-suggestion" data-id="${item.id}" data-rating="4">4</button>
-          <button type="button" data-action="rate-suggestion" data-id="${item.id}" data-rating="5">5</button>
-          <button type="button" data-action="pin-suggestion" data-id="${item.id}">Pin as hard point</button>
+      const ratingLabel = existingRating ? `Rated ${existingRating}/5` : "";
+      const actions = `
+        <div class="option-feedback-row">
+          <button type="button" class="btn-rate ${existingRating >= 2 ? "is-rated" : ""}" data-action="rate-suggestion" data-id="${item.id}" data-rating="2">2</button>
+          <button type="button" class="btn-rate ${existingRating >= 3 ? "is-rated" : ""}" data-action="rate-suggestion" data-id="${item.id}" data-rating="3">3</button>
+          <button type="button" class="btn-rate ${existingRating >= 4 ? "is-rated" : ""}" data-action="rate-suggestion" data-id="${item.id}" data-rating="4">4</button>
+          <button type="button" class="btn-rate ${existingRating >= 5 ? "is-rated" : ""}" data-action="rate-suggestion" data-id="${item.id}" data-rating="5">5</button>
+          ${ratingLabel ? `<span class="meta">${ratingLabel}</span>` : ""}
         </div>
-      </article>
-      `;
+        <div class="option-add-row">
+          <button type="button" class="btn-secondary" data-action="pin-suggestion" data-id="${item.id}">Pin as anchor</button>
+        </div>`;
+      return `
+      <article class="suggestion-card option-card" data-entity-key="${htmlEscape(item.id)}" data-entity-link="${htmlEscape(buildEntityLinkKey(item))}">
+        ${buildOptionCardHtml(item, actions)}
+      </article>`;
     })
     .join("");
 }
@@ -3083,21 +3444,23 @@ function renderPlaceResults() {
   }
 
   els.placeResults.innerHTML = state.lastPlaces
-    .map((item) => `
-      <article class="result-card" data-entity-key="${htmlEscape(item.id)}" data-entity-link="${htmlEscape(buildEntityLinkKey(item))}">
-        <strong>${htmlEscape(item.title)}</strong>
-        <div class="meta">${htmlEscape(item.city || "Unknown city")} | ${htmlEscape(item.kind || item.category || "location")}</div>
-        <div class="meta">${htmlEscape(item.description || "Suggested place/trip")}</div>
-        <div class="item-actions">
-          <button type="button" data-action="interleave-place" data-id="${item.id}">Interleave in itinerary</button>
-          <button type="button" data-action="soft-place" data-id="${item.id}">Soft add POI</button>
-          <button type="button" data-action="lock-place" data-id="${item.id}">Lock as hard point</button>
-          <button type="button" data-action="rate-place" data-id="${item.id}" data-rating="3">Rate 3</button>
-          <button type="button" data-action="rate-place" data-id="${item.id}" data-rating="4">Rate 4</button>
-          <button type="button" data-action="rate-place" data-id="${item.id}" data-rating="5">Rate 5</button>
+    .map((item) => {
+      const actions = `
+        <div class="option-add-row">
+          <button type="button" class="btn-secondary" data-action="interleave-place" data-id="${item.id}">+ Add</button>
+          <button type="button" class="btn-ghost" data-action="soft-place" data-id="${item.id}">Soft add</button>
+          <button type="button" class="btn-ghost" data-action="lock-place" data-id="${item.id}">Lock</button>
         </div>
-      </article>
-    `)
+        <div class="option-feedback-row">
+          <button type="button" class="btn-rate" data-action="rate-place" data-id="${item.id}" data-rating="3">3</button>
+          <button type="button" class="btn-rate" data-action="rate-place" data-id="${item.id}" data-rating="4">4</button>
+          <button type="button" class="btn-rate" data-action="rate-place" data-id="${item.id}" data-rating="5">5</button>
+        </div>`;
+      return `
+      <article class="result-card option-card" data-entity-key="${htmlEscape(item.id)}" data-entity-link="${htmlEscape(buildEntityLinkKey(item))}">
+        ${buildOptionCardHtml(item, actions)}
+      </article>`;
+    })
     .join("");
 }
 
@@ -3722,23 +4085,23 @@ function renderLlmResults() {
   }
 
   els.llmSearchResults.innerHTML = state.lastLlmResults
-    .map((item) => `
-      <article class="result-card" data-entity-key="${htmlEscape(item.id)}" data-entity-link="${htmlEscape(buildEntityLinkKey(item))}">
-        <strong>${htmlEscape(item.title)}</strong>
-        <div class="meta">${htmlEscape(item.kind)} | ${htmlEscape(item.city || "City not set")}${item.date ? ` | ${htmlEscape(item.date)}` : ""}</div>
-        <div class="meta">${htmlEscape(item.description || "LLM recommendation")}</div>
-        <div class="meta">${Number.isFinite(item.lat) && Number.isFinite(item.lng) ? "Map coordinates available" : "Coordinates will be resolved on add"}</div>
-        <div class="chip-list">${(item.tags || []).map((tag) => `<span class="chip">${htmlEscape(tag)}</span>`).join("")}</div>
-        <div class="item-actions">
-          <button type="button" data-action="interleave-llm" data-id="${item.id}">Interleave in itinerary</button>
-          <button type="button" data-action="soft-llm" data-id="${item.id}">Soft add POI</button>
-          <button type="button" data-action="lock-llm" data-id="${item.id}">Lock as hard point</button>
-          <button type="button" data-action="rate-llm" data-id="${item.id}" data-rating="3">Rate 3</button>
-          <button type="button" data-action="rate-llm" data-id="${item.id}" data-rating="4">Rate 4</button>
-          <button type="button" data-action="rate-llm" data-id="${item.id}" data-rating="5">Rate 5</button>
+    .map((item) => {
+      const actions = `
+        <div class="option-add-row">
+          <button type="button" class="btn-secondary" data-action="interleave-llm" data-id="${item.id}">+ Add</button>
+          <button type="button" class="btn-ghost" data-action="soft-llm" data-id="${item.id}">Soft add</button>
+          <button type="button" class="btn-ghost" data-action="lock-llm" data-id="${item.id}">Lock</button>
         </div>
-      </article>
-    `)
+        <div class="option-feedback-row">
+          <button type="button" class="btn-rate" data-action="rate-llm" data-id="${item.id}" data-rating="3">3</button>
+          <button type="button" class="btn-rate" data-action="rate-llm" data-id="${item.id}" data-rating="4">4</button>
+          <button type="button" class="btn-rate" data-action="rate-llm" data-id="${item.id}" data-rating="5">5</button>
+        </div>`;
+      return `
+      <article class="result-card option-card" data-entity-key="${htmlEscape(item.id)}" data-entity-link="${htmlEscape(buildEntityLinkKey(item))}">
+        ${buildOptionCardHtml(item, actions)}
+      </article>`;
+    })
     .join("");
 }
 
@@ -3855,21 +4218,24 @@ function renderEventResults() {
   }
 
   els.eventResults.innerHTML = state.lastEvents
-    .map((event) => `
-      <article class="result-card" data-entity-key="${htmlEscape(event.id)}" data-entity-link="${htmlEscape(buildEntityLinkKey(event))}">
-        <strong>${htmlEscape(event.title)}</strong>
-        <div class="meta">${htmlEscape(event.date)} | ${htmlEscape(event.city)} | ${htmlEscape(event.category)}</div>
-        <div class="meta">${htmlEscape(event.venue || "Venue pending")}</div>
-        <div class="item-actions">
-          <button type="button" data-action="interleave-event" data-id="${event.id}">Interleave in itinerary</button>
-          <button type="button" data-action="soft-event" data-id="${event.id}">Soft add POI</button>
-          <button type="button" data-action="pin-event" data-id="${event.id}">Pin as hard point</button>
-          <button type="button" data-action="rate-event" data-id="${event.id}" data-rating="3">Rate 3</button>
-          <button type="button" data-action="rate-event" data-id="${event.id}" data-rating="4">Rate 4</button>
-          <button type="button" data-action="rate-event" data-id="${event.id}" data-rating="5">Rate 5</button>
+    .map((ev) => {
+      const item = { ...ev, description: ev.venue || "Venue pending" };
+      const actions = `
+        <div class="option-add-row">
+          <button type="button" class="btn-secondary" data-action="interleave-event" data-id="${ev.id}">+ Add</button>
+          <button type="button" class="btn-ghost" data-action="soft-event" data-id="${ev.id}">Soft add</button>
+          <button type="button" class="btn-ghost" data-action="pin-event" data-id="${ev.id}">Pin</button>
         </div>
-      </article>
-    `)
+        <div class="option-feedback-row">
+          <button type="button" class="btn-rate" data-action="rate-event" data-id="${ev.id}" data-rating="3">3</button>
+          <button type="button" class="btn-rate" data-action="rate-event" data-id="${ev.id}" data-rating="4">4</button>
+          <button type="button" class="btn-rate" data-action="rate-event" data-id="${ev.id}" data-rating="5">5</button>
+        </div>`;
+      return `
+      <article class="result-card option-card" data-entity-key="${htmlEscape(ev.id)}" data-entity-link="${htmlEscape(buildEntityLinkKey(ev))}">
+        ${buildOptionCardHtml(item, actions)}
+      </article>`;
+    })
     .join("");
 }
 
@@ -4555,6 +4921,28 @@ function renderMap() {
     pushMapElement(marker, true);
   });
 
+  const chatCandidates = getLatestChatCandidates(8);
+  chatCandidates.forEach((item) => {
+    if (!Number.isFinite(item.lat) || !Number.isFinite(item.lng)) return;
+    const style = {
+      radius: 5,
+      color: "#6a5fb3",
+      fillColor: "#a39be0",
+      fillOpacity: 0.76,
+      opacity: 0.9,
+    };
+    const marker = L.circleMarker([item.lat, item.lng], style)
+      .bindPopup(`<strong>${htmlEscape(item.title)}</strong><br>Latest chat suggestion`);
+    marker.addTo(layers.suggestions);
+    registerMapLayer(marker, {
+      entityKeys: [item.id],
+      linkKeys: [item.linkKey],
+      baseStyle: style,
+      enableHover: true,
+    });
+    pushMapElement(marker, false);
+  });
+
   const timelinePoints = getTimelineItems().filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng));
   if (timelinePoints.length >= 2) {
     for (let i = 0; i < timelinePoints.length - 1; i += 1) {
@@ -4942,6 +5330,7 @@ function init() {
   bindElements();
   hydrateSyncForm();
   initializeMobileView();
+  initializeTopTab();
   initializeMobilePlanView();
   initializeVisualBoardCollapsed();
   initMap();
@@ -4955,7 +5344,7 @@ function init() {
   setDefaultEventDate();
   ensureConversationInitialized();
   renderAll();
-  setStatus("MindTrip planner ready. Add hard points to begin.");
+  setStatus("MindTrip planner ready. Start in chat, then anchor hard points and refine recommendations.");
   void loadCloudState({ initial: true });
 }
 

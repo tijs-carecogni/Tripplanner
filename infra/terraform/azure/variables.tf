@@ -38,6 +38,11 @@ variable "container_memory" {
   default     = "1Gi"
 }
 
+variable "acr_name" {
+  description = "Name of the Azure Container Registry to pull images from."
+  type        = string
+}
+
 variable "storage_account_name_prefix" {
   description = "Prefix used to generate a globally unique storage account name."
   type        = string
