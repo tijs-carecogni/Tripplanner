@@ -2,6 +2,20 @@
 
 This project is a Catan/Colonist-inspired browser game with a human player and strategic AI opponents.
 
+## Demo (GitHub Pages)
+
+After enabling Pages for the repository, the game is published at:
+
+- https://tijs-carecogni.github.io/Tripplanner/
+
+If this is the first deployment, open repository **Settings -> Pages** and set the source to
+**GitHub Actions**. The workflow file is:
+
+- `.github/workflows/deploy-pages.yml`
+
+Deployments run on pushes to `main` and `cursor/colonist-game-ai-351c`, and can also be started
+manually from the Actions tab.
+
 ## Features
 
 ### Core board/rules
@@ -68,9 +82,9 @@ Open:
 
 ## Controls
 
-- **Auto Current Turn**: auto-plays the active player’s turn
-- **Start/Stop Autoplay**: continuously simulates turns
 - **Roll Dice / End Turn**: manual human turn flow
+- **Play AI Turns**: resolves AI turns until it is the human player turn again
+- **Start/Stop Autoplay**: continuously simulates turns
 - **Build buttons**: choose action, then click board target
 - **Buy/Play Dev Cards**: manage development card strategy
 - **Bank Trade**: select give/get resources and trade by current rate
