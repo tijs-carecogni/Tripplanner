@@ -392,6 +392,24 @@ button:disabled {
   transform: translateY(-1px);
 }
 
+.can-build {
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.64) inset,
+    0 0 0 2px rgba(143, 230, 255, 0.45),
+    0 5px 10px rgba(23, 117, 161, 0.28);
+  animation: buildReadyPulse 1.2s ease-in-out infinite;
+}
+
+@keyframes buildReadyPulse {
+  0%,
+  100% {
+    filter: saturate(1);
+  }
+  50% {
+    filter: saturate(1.18) brightness(1.05);
+  }
+}
+
 input[type="range"] {
   width: 100%;
   accent-color: var(--accent-strong);

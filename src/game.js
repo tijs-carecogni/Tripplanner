@@ -356,11 +356,14 @@ class ColonistFullGame {
     this.animTime = 0;
     this.lastAnimationTs = 0;
     this.animationFrame = null;
+    this.rollFx = { active: false, startedAt: 0, until: 0, finalValue: null };
+    this.gainFx = [];
     this.boardWidth = Number(this.canvas.getAttribute("width")) || 1100;
     this.boardHeight = Number(this.canvas.getAttribute("height")) || 560;
     this.pixelRatio = 1;
     this.view = { offsetX: 0, offsetY: 0, scale: 1 };
     this.dragState = { active: false, startX: 0, startY: 0, baseOffsetX: 0, baseOffsetY: 0 };
+    this.setupState = null;
     this.hoverHexId = null;
     this.hoverNodeId = null;
     this.hoverEdgeId = null;
@@ -528,13 +531,15 @@ class ColonistFullGame {
     this.logEntries = [];
     this.turn = 1;
     this.currentPlayerIndex = 0;
-    this.phase = "pre_roll";
+    this.phase = "setup";
     this.lastRoll = null;
     this.winner = null;
     this.pendingAction = null;
     this.currentTurnPlayedDevCard = false;
     this.longestRoadHolder = null;
     this.largestArmyHolder = null;
+    this.rollFx = { active: false, startedAt: 0, until: 0, finalValue: null };
+    this.gainFx = [];
     this.view.offsetX = 0;
     this.view.offsetY = 0;
     this.view.scale = 1;
@@ -543,32 +548,109 @@ class ColonistFullGame {
     this.hoverEdgeId = null;
     this.hoverTooltip = "";
     this.canvas.style.cursor = "grab";
+    this.setupState = {
+      order: [0, 1, 2, 3, 3, 2, 1, 0],
+      index: 0,
+      awaiting: "settlement",
+      pendingSettlementNode: null,
+    };
 
-    this.initialPlacement();
+    this.runSetupUntilHuman();
     this.recomputeScores();
     this.addLog("Game initialized with full rule set and strategic AI.");
     this.render();
   }
 
-  initialPlacement() {
-    const placementOrder = [0, 1, 2, 3, 3, 2, 1, 0];
-    placementOrder.forEach((playerId, idx) => {
-      const player = this.players[playerId];
-      const nodeId = this.getBestInitialSettlementNode(player);
-      if (nodeId == null) return;
-      this.placeSettlement(player, nodeId, true);
-      const roadId = this.getBestRoadFromNode(player, nodeId);
-      if (roadId != null) this.placeRoad(player, roadId, { free: true, setupNode: nodeId });
-      if (idx >= this.players.length) {
-        this.geometry.nodes[nodeId].adjacentHexes.forEach((hexId) => {
-          const hex = this.geometry.hexes[hexId];
-          if (hex.resource !== "desert") {
-            player.resources[hex.resource] += 1;
-          }
-        });
+  grantSetupResourcesFromNode(player, nodeId) {
+    this.geometry.nodes[nodeId].adjacentHexes.forEach((hexId) => {
+      const hex = this.geometry.hexes[hexId];
+      if (hex.resource !== "desert") {
+        player.resources[hex.resource] += 1;
       }
     });
-    this.addLog("Initial placement complete.");
+  }
+
+  finalizeSetupPhase() {
+    this.setupState = null;
+    this.pendingAction = null;
+    this.currentPlayerIndex = 0;
+    this.phase = "pre_roll";
+    this.addLog("Initial placement complete. Roll to start the game.");
+  }
+
+  runSetupUntilHuman() {
+    if (!this.setupState) return;
+    while (this.setupState.index < this.setupState.order.length) {
+      const playerId = this.setupState.order[this.setupState.index];
+      this.currentPlayerIndex = playerId;
+      const player = this.players[playerId];
+      if (player.isHuman) {
+        return;
+      }
+
+      if (this.setupState.awaiting === "settlement") {
+        const nodeId = this.getBestInitialSettlementNode(player);
+        if (nodeId == null) {
+          this.setupState.index += 1;
+          this.setupState.awaiting = "settlement";
+          this.setupState.pendingSettlementNode = null;
+          continue;
+        }
+        this.placeSettlement(player, nodeId, true);
+        this.setupState.pendingSettlementNode = nodeId;
+        this.setupState.awaiting = "road";
+        continue;
+      }
+
+      const nodeId = this.setupState.pendingSettlementNode;
+      const roadId = nodeId == null ? null : this.getBestRoadFromNode(player, nodeId);
+      if (roadId != null) this.placeRoad(player, roadId, { free: true, setupNode: nodeId });
+      if (nodeId != null && this.setupState.index >= this.players.length) {
+        this.grantSetupResourcesFromNode(player, nodeId);
+      }
+      this.setupState.index += 1;
+      this.setupState.awaiting = "settlement";
+      this.setupState.pendingSettlementNode = null;
+    }
+    this.finalizeSetupPhase();
+  }
+
+  handleSetupBoardClick(x, y) {
+    if (!this.setupState || this.phase !== "setup") return false;
+    const expectedPlayerId = this.setupState.order[this.setupState.index];
+    const player = this.currentPlayer;
+    if (!player?.isHuman || expectedPlayerId !== player.id) return false;
+
+    if (this.setupState.awaiting === "settlement") {
+      const nodeId = this.hoverNodeId ?? this.findNodeAt(x, y);
+      if (nodeId == null) return false;
+      if (!this.placeSettlement(player, nodeId, true)) {
+        this.addLog("Setup: choose an open node with distance rule.");
+        return false;
+      }
+      this.setupState.pendingSettlementNode = nodeId;
+      this.setupState.awaiting = "road";
+      this.addLog("Setup: settlement placed. Now place an adjacent road.");
+      this.recomputeScores();
+      return true;
+    }
+
+    const edgeId = this.hoverEdgeId ?? this.findEdgeAt(x, y);
+    if (edgeId == null) return false;
+    if (!this.placeRoad(player, edgeId, { free: true, setupNode: this.setupState.pendingSettlementNode })) {
+      this.addLog("Setup: road must be connected to your new settlement.");
+      return false;
+    }
+    if (this.setupState.index >= this.players.length) {
+      this.grantSetupResourcesFromNode(player, this.setupState.pendingSettlementNode);
+      this.addLog(`${player.name} receives starting resources from second settlement.`);
+    }
+    this.setupState.index += 1;
+    this.setupState.awaiting = "settlement";
+    this.setupState.pendingSettlementNode = null;
+    this.runSetupUntilHuman();
+    this.recomputeScores();
+    return true;
   }
 
   addLog(text) {
@@ -663,16 +745,61 @@ class ColonistFullGame {
     this.render();
   }
 
+  trySmartBuildAt(player, x, y) {
+    if (!player?.isHuman || this.phase !== "main" || this.pendingAction) return false;
+
+    const nodeId = this.hoverNodeId ?? this.findNodeAt(x, y);
+    if (nodeId != null) {
+      if (hasResources(player.resources, COSTS.city) && this.canBuildCity(player, nodeId, false)) {
+        if (this.placeCity(player, nodeId, false)) {
+          payCost(player.resources, COSTS.city);
+          this.addLog(`${player.name} upgraded to a city.`);
+          return true;
+        }
+      }
+      if (hasResources(player.resources, COSTS.settlement) && this.canBuildSettlement(player, nodeId, false)) {
+        if (this.placeSettlement(player, nodeId, false)) {
+          payCost(player.resources, COSTS.settlement);
+          this.addLog(`${player.name} built a settlement.`);
+          return true;
+        }
+      }
+    }
+
+    const edgeId = this.hoverEdgeId ?? this.findEdgeAt(x, y);
+    if (edgeId != null && hasResources(player.resources, COSTS.road) && this.canBuildRoad(player, edgeId, { free: false })) {
+      if (this.placeRoad(player, edgeId, { free: false })) {
+        payCost(player.resources, COSTS.road);
+        this.addLog(`${player.name} built a road.`);
+        return true;
+      }
+    }
+    return false;
+  }
+
   handleBoardClick(event) {
     const player = this.currentPlayer;
-    if (!player || !player.isHuman || this.phase !== "main" || this.winner) return;
+    if (!player || !player.isHuman || this.winner) return;
 
     const { x: sx, y: sy } = this.getCanvasPoint(event);
     const world = this.screenToWorld(sx, sy);
     const x = world.x;
     const y = world.y;
 
+    if (this.phase === "setup") {
+      this.handleSetupBoardClick(x, y);
+      this.render();
+      return;
+    }
+    if (this.phase !== "main") return;
+
     if (!this.pendingAction) {
+      if (this.trySmartBuildAt(player, x, y)) {
+        this.recomputeScores();
+        this.checkForWinner(player);
+        this.render();
+        return;
+      }
       const hexId = this.findHexAt(x, y);
       if (hexId != null) {
         const hex = this.geometry.hexes[hexId];
@@ -751,6 +878,8 @@ class ColonistFullGame {
 
   handleCanvasMouseDown(event) {
     if (event.button !== 0) return;
+    if (this.hoverNodeId != null || this.hoverEdgeId != null) return;
+    if (this.phase === "setup") return;
     if (this.pendingAction) return;
     this.dragState.active = true;
     const { x: sx, y: sy } = this.getCanvasPoint(event);
@@ -786,6 +915,35 @@ class ColonistFullGame {
     this.hoverTooltip = "";
 
     const player = this.currentPlayer;
+    if (player?.isHuman && this.phase === "setup" && this.setupState) {
+      if (this.setupState.awaiting === "settlement") {
+        const nodeId = this.findNodeAt(worldX, worldY);
+        if (nodeId != null && this.canBuildSettlement(player, nodeId, true)) {
+          this.hoverNodeId = nodeId;
+          this.hoverTooltip = "Setup: place settlement";
+          this.canvas.style.cursor = "pointer";
+        } else {
+          this.canvas.style.cursor = "crosshair";
+        }
+        return;
+      }
+      const edgeId = this.findEdgeAt(worldX, worldY);
+      if (
+        edgeId != null &&
+        this.canBuildRoad(player, edgeId, {
+          free: true,
+          setupNode: this.setupState.pendingSettlementNode,
+        })
+      ) {
+        this.hoverEdgeId = edgeId;
+        this.hoverTooltip = "Setup: place road";
+        this.canvas.style.cursor = "pointer";
+      } else {
+        this.canvas.style.cursor = "crosshair";
+      }
+      return;
+    }
+
     if (player?.isHuman && this.phase === "main" && this.pendingAction === "road") {
       const edgeId = this.findEdgeAt(worldX, worldY);
       if (edgeId != null && this.canBuildRoad(player, edgeId, { free: false })) {
@@ -810,6 +968,41 @@ class ColonistFullGame {
         this.canvas.style.cursor = "crosshair";
       }
       return;
+    }
+
+    if (player?.isHuman && this.phase === "main" && !this.pendingAction) {
+      const nodeId = this.findNodeAt(worldX, worldY);
+      if (
+        nodeId != null &&
+        hasResources(player.resources, COSTS.city) &&
+        this.canBuildCity(player, nodeId, false)
+      ) {
+        this.hoverNodeId = nodeId;
+        this.hoverTooltip = "Click to build city";
+        this.canvas.style.cursor = "pointer";
+        return;
+      }
+      if (
+        nodeId != null &&
+        hasResources(player.resources, COSTS.settlement) &&
+        this.canBuildSettlement(player, nodeId, false)
+      ) {
+        this.hoverNodeId = nodeId;
+        this.hoverTooltip = "Click to build settlement";
+        this.canvas.style.cursor = "pointer";
+        return;
+      }
+      const edgeId = this.findEdgeAt(worldX, worldY);
+      if (
+        edgeId != null &&
+        hasResources(player.resources, COSTS.road) &&
+        this.canBuildRoad(player, edgeId, { free: false })
+      ) {
+        this.hoverEdgeId = edgeId;
+        this.hoverTooltip = "Click to build road";
+        this.canvas.style.cursor = "pointer";
+        return;
+      }
     }
 
     const hexId = this.findHexAt(worldX, worldY);
@@ -864,10 +1057,37 @@ class ColonistFullGame {
   executeRollPhase(player) {
     if (this.phase !== "pre_roll") return;
     this.lastRoll = this.rollDice();
+    this.rollFx.active = true;
+    this.rollFx.startedAt = this.animTime;
+    this.rollFx.until = this.animTime + 0.85;
+    this.rollFx.finalValue = this.lastRoll;
     this.phase = "main";
     this.addLog(`Turn ${this.turn}: ${player.name} rolled ${this.lastRoll}.`);
     if (this.lastRoll === 7) this.resolveRobber(player, "rolled a 7");
     else this.distributeResources(this.lastRoll);
+  }
+
+  queueGainFx(playerId, gain) {
+    const anchors = [
+      { x: 114, y: 98 },
+      { x: this.boardWidth - 214, y: 98 },
+      { x: this.boardWidth - 214, y: this.boardHeight - 88 },
+      { x: 114, y: this.boardHeight - 88 },
+    ];
+    const anchor = anchors[playerId] || anchors[0];
+    const compact = RESOURCES.filter((resource) => gain[resource] > 0)
+      .map((resource) => `+${RESOURCE_SHORT[resource]}${gain[resource]}`)
+      .join(" ");
+    if (!compact) return;
+    this.gainFx.push({
+      id: `${playerId}-${Math.random().toString(36).slice(2, 8)}`,
+      text: compact,
+      x: anchor.x + (Math.random() * 20 - 10),
+      y: anchor.y + (Math.random() * 10 - 5),
+      startedAt: this.animTime,
+      duration: 1.25,
+      color: this.players[playerId].color,
+    });
   }
 
   distributeResources(roll) {
@@ -886,6 +1106,7 @@ class ColonistFullGame {
     gainByPlayer.forEach((gain, playerId) => {
       if (sumResources(gain) > 0) {
         this.addLog(`${this.players[playerId].name} gains ${resourceString(gain)}.`);
+        this.queueGainFx(playerId, gain);
       }
     });
   }
@@ -1133,6 +1354,10 @@ class ColonistFullGame {
 
   autoPlayCurrentTurn() {
     if (this.winner) return;
+    if (this.phase === "setup") {
+      this.runSetupUntilHuman();
+      return;
+    }
     const player = this.currentPlayer;
     if (this.phase === "pre_roll") this.executeRollPhase(player);
     if (this.phase === "main") {
@@ -1372,6 +1597,24 @@ class ColonistFullGame {
     return result;
   }
 
+  hasBuildOption(player, action) {
+    if (!player) return false;
+    if (action === "road") {
+      return this.geometry.edges.some((edge) => this.canBuildRoad(player, edge.id, { free: false }));
+    }
+    if (action === "settlement") {
+      return this.geometry.nodes.some((node) => this.canBuildSettlement(player, node.id, false));
+    }
+    if (action === "city") {
+      return [...player.settlements].some((nodeId) => this.canBuildCity(player, nodeId, false));
+    }
+    return false;
+  }
+
+  canAnyBankTrade(player) {
+    return RESOURCES.some((resource) => player.resources[resource] >= this.getPlayerTradeRate(player, resource));
+  }
+
   getBestCityTarget(player) {
     let best = null;
     let bestScore = Number.NEGATIVE_INFINITY;
@@ -1596,7 +1839,7 @@ class ColonistFullGame {
   }
 
   startAutoplay() {
-    if (this.winner) return;
+    if (this.winner || this.phase === "setup") return;
     this.stopAiTurnLoop();
     const delay = Number(this.speedRange.value);
     this.autoplayInterval = window.setInterval(() => {
@@ -1621,6 +1864,11 @@ class ColonistFullGame {
 
   scheduleAiTurnsUntilHuman() {
     if (this.winner || this.autoplayInterval) return;
+    if (this.phase === "setup") {
+      this.runSetupUntilHuman();
+      this.render();
+      return;
+    }
     if (this.currentPlayer.isHuman) return;
     if (this.aiTurnTimeout) return;
 
@@ -2215,8 +2463,8 @@ class ColonistFullGame {
   drawHoverTooltip() {
     if (!this.hoverTooltip) return;
     const ctx = this.ctx;
-    const x = this.hoverPointer.x + 14;
-    const y = this.hoverPointer.y - 28;
+    const x = clamp(this.hoverPointer.x + 14, 10, this.boardWidth - 186);
+    const y = clamp(this.hoverPointer.y - 28, 10, this.boardHeight - 34);
     ctx.save();
     ctx.font = "700 12px Inter, sans-serif";
     const width = Math.max(90, ctx.measureText(this.hoverTooltip).width + 16);
@@ -2233,10 +2481,44 @@ class ColonistFullGame {
     ctx.restore();
   }
 
+  drawFloatingGainEffects() {
+    if (!this.gainFx.length) return;
+    const ctx = this.ctx;
+    this.gainFx = this.gainFx.filter((effect) => this.animTime - effect.startedAt <= effect.duration);
+    this.gainFx.forEach((effect) => {
+      const progress = clamp((this.animTime - effect.startedAt) / effect.duration, 0, 1);
+      const rise = progress * 22;
+      const alpha = 1 - progress;
+      const x = effect.x;
+      const y = effect.y - rise;
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.font = "700 11px Inter, sans-serif";
+      const textWidth = ctx.measureText(effect.text).width;
+      const w = textWidth + 14;
+      this.drawRoundedRect(x, y, w, 20, 8);
+      ctx.fillStyle = "rgba(14, 41, 66, 0.86)";
+      ctx.fill();
+      ctx.strokeStyle = `${effect.color}cc`;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.fillStyle = "#eaf6ff";
+      ctx.textAlign = "left";
+      ctx.textBaseline = "middle";
+      ctx.fillText(effect.text, x + 7, y + 10.8);
+      ctx.restore();
+    });
+  }
+
   drawTurnHud() {
     const ctx = this.ctx;
     const active = this.currentPlayer;
-    const phase = this.phase === "pre_roll" ? "Roll" : this.phase === "main" ? "Main" : "Over";
+    const phase =
+      this.phase === "setup" ? "Setup" : this.phase === "pre_roll" ? "Roll" : this.phase === "main" ? "Main" : "Over";
+    const rollingNow = this.rollFx.active && this.animTime < this.rollFx.until;
+    if (this.rollFx.active && !rollingNow) this.rollFx.active = false;
+    const animatedRoll = 2 + (Math.floor(this.animTime * 24) % 11);
+    const shownRoll = rollingNow ? animatedRoll : (this.lastRoll ?? "-");
     this.drawRoundedRect(20, 18, 250, 66, 10);
     ctx.fillStyle = "rgba(255, 255, 255, 0.93)";
     ctx.fill();
@@ -2261,7 +2543,15 @@ class ColonistFullGame {
     ctx.fillStyle = "#19416c";
     ctx.font = "700 14px Inter, sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText(String(this.lastRoll ?? "-"), 245, 40.5);
+    ctx.fillText(String(shownRoll), 245, 40.5);
+    if (rollingNow) {
+      ctx.beginPath();
+      const pulse = 12 + Math.sin(this.animTime * 16) * 2.3;
+      ctx.arc(245, 40, pulse, 0, Math.PI * 2);
+      ctx.strokeStyle = "rgba(34, 141, 214, 0.36)";
+      ctx.lineWidth = 1.4;
+      ctx.stroke();
+    }
   }
 
   renderScoreboard() {
@@ -2358,33 +2648,60 @@ class ColonistFullGame {
       this.hintText.textContent = "Game over. Reset to play again.";
     } else {
       const active = this.currentPlayer;
-      const phaseText = this.phase === "pre_roll" ? "Roll phase" : "Main phase";
+      const phaseText =
+        this.phase === "setup" ? "Setup phase" : this.phase === "pre_roll" ? "Roll phase" : "Main phase";
       const rollText = this.lastRoll != null ? ` · Roll ${this.lastRoll}` : "";
       this.statusText.textContent = `Turn ${this.turn} · Active: ${active.name} · ${phaseText}${rollText}`;
-      this.hintText.textContent =
-        this.pendingAction != null
-          ? `Selected action: ${this.pendingAction}. Valid targets glow on board; click to place.`
-          : active.isHuman
-            ? this.phase === "pre_roll"
-              ? "Flow: Roll Dice -> Build / Trade / Play Card -> End Turn."
-              : "Build, trade, and play dev cards, then end your turn."
-            : "AI players are resolving turns until your next turn.";
+      if (this.phase === "setup") {
+        if (active.isHuman && this.setupState) {
+          this.hintText.textContent =
+            this.setupState.awaiting === "settlement"
+              ? "Setup: click a valid node to place your starting settlement."
+              : "Setup: click an edge connected to your new settlement to place a road.";
+        } else {
+          this.hintText.textContent = "AI players are placing starting settlements and roads.";
+        }
+      } else {
+        this.hintText.textContent =
+          this.pendingAction != null
+            ? `Selected action: ${this.pendingAction}. Valid targets glow on board; click to place.`
+            : active.isHuman
+              ? this.phase === "pre_roll"
+                ? "Flow: Roll Dice -> Build / Trade / Play Card -> End Turn."
+                : "Click map to auto-build when legal, or choose a specific action button."
+              : "AI players are resolving turns until your next turn.";
+      }
     }
 
     const humanTurn = this.currentPlayer.isHuman && !this.winner;
+    const setupPhase = this.phase === "setup";
     const mainPhase = this.phase === "main";
     const preRoll = this.phase === "pre_roll";
     const noDevPlayed = !this.currentTurnPlayedDevCard;
     const human = this.currentPlayer;
+    const canRoad = humanTurn && mainPhase && hasResources(human.resources, COSTS.road) && this.hasBuildOption(human, "road");
+    const canSettlement =
+      humanTurn &&
+      mainPhase &&
+      hasResources(human.resources, COSTS.settlement) &&
+      this.hasBuildOption(human, "settlement");
+    const canCity = humanTurn && mainPhase && hasResources(human.resources, COSTS.city) && this.hasBuildOption(human, "city");
+    const canDev = humanTurn && mainPhase && hasResources(human.resources, COSTS.development);
+    const canTrade = humanTurn && mainPhase && this.canAnyBankTrade(human);
 
-    this.nextTurnBtn.disabled = !!this.winner || humanTurn || this.autoplayInterval != null;
+    if (this.pendingAction === "road" && !canRoad) this.pendingAction = null;
+    if (this.pendingAction === "settlement" && !canSettlement) this.pendingAction = null;
+    if (this.pendingAction === "city" && !canCity) this.pendingAction = null;
+
+    this.nextTurnBtn.disabled = !!this.winner || humanTurn || setupPhase || this.autoplayInterval != null;
     this.rollDiceBtn.disabled = !(humanTurn && preRoll);
     this.endTurnBtn.disabled = !(humanTurn && mainPhase);
-    this.buildRoadBtn.disabled = !(humanTurn && mainPhase);
-    this.buildSettlementBtn.disabled = !(humanTurn && mainPhase);
-    this.buildCityBtn.disabled = !(humanTurn && mainPhase);
-    this.buyDevBtn.disabled = !(humanTurn && mainPhase);
-    this.tradeBankBtn.disabled = !(humanTurn && mainPhase);
+    this.buildRoadBtn.disabled = !canRoad;
+    this.buildSettlementBtn.disabled = !canSettlement;
+    this.buildCityBtn.disabled = !canCity;
+    this.buyDevBtn.disabled = !canDev;
+    this.tradeBankBtn.disabled = !canTrade;
+    this.autoplayBtn.disabled = setupPhase;
 
     this.playKnightBtn.disabled = !(humanTurn && mainPhase && noDevPlayed && human.devCards.knight > 0);
     this.playRoadBuildingBtn.disabled = !(
@@ -2408,9 +2725,14 @@ class ColonistFullGame {
     if (this.phase === "main") this.phaseBuildTag?.classList.add("active");
     if (this.phase === "main" && humanTurn) this.phaseEndTag?.classList.add("active");
 
-    [this.buildRoadBtn, this.buildSettlementBtn, this.buildCityBtn].forEach((btn) =>
-      btn.classList.remove("selected-action"),
+    [this.buildRoadBtn, this.buildSettlementBtn, this.buildCityBtn, this.tradeBankBtn, this.buyDevBtn].forEach((btn) =>
+      btn.classList.remove("selected-action", "can-build"),
     );
+    if (canRoad) this.buildRoadBtn.classList.add("can-build");
+    if (canSettlement) this.buildSettlementBtn.classList.add("can-build");
+    if (canCity) this.buildCityBtn.classList.add("can-build");
+    if (canDev) this.buyDevBtn.classList.add("can-build");
+    if (canTrade) this.tradeBankBtn.classList.add("can-build");
     if (this.pendingAction === "road") this.buildRoadBtn.classList.add("selected-action");
     if (this.pendingAction === "settlement") this.buildSettlementBtn.classList.add("selected-action");
     if (this.pendingAction === "city") this.buildCityBtn.classList.add("selected-action");
@@ -2431,6 +2753,7 @@ class ColonistFullGame {
     this.drawHoverEffects();
     this.ctx.restore();
     this.drawHoverTooltip();
+    this.drawFloatingGainEffects();
     this.drawTurnHud();
   }
 
