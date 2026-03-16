@@ -101,6 +101,20 @@ h2 {
   color: #1d4f82;
 }
 
+.mini-player-identity {
+  display: flex;
+  align-items: center;
+  gap: 0.32rem;
+}
+
+.mini-player-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.6);
+}
+
 .mini-player-name {
   font-weight: 800;
 }
@@ -177,17 +191,31 @@ main {
 }
 
 .dev-card-btn {
-  min-height: 58px;
-  min-width: 102px;
-  padding: 0.3rem 0.48rem;
+  min-height: 62px;
+  min-width: 130px;
+  padding: 0.3rem 0.44rem;
   font-size: 0.74rem;
   border-radius: 10px;
   box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.35);
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
-  gap: 0.1rem;
+  gap: 0.4rem;
+}
+
+.dev-icon-img {
+  width: 42px;
+  height: 30px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.3);
+  object-fit: cover;
+}
+
+.dev-copy {
+  display: grid;
+  gap: 0.08rem;
+  text-align: left;
 }
 
 .dev-title {
@@ -390,13 +418,10 @@ select {
   width: 26px;
   height: 26px;
   border-radius: 999px;
-  display: grid;
-  place-items: center;
-  color: #fff;
-  font-size: 0.72rem;
-  font-weight: 800;
+  object-fit: cover;
   border: 1px solid rgba(255, 255, 255, 0.7);
   box-shadow: 0 2px 4px rgba(24, 57, 88, 0.25);
+  background: rgba(255, 255, 255, 0.6);
 }
 
 .vp-badge {
@@ -428,11 +453,22 @@ select {
 
 .resource-chip {
   border-radius: 999px;
-  padding: 0.1rem 0.45rem;
+  padding: 0.1rem 0.38rem;
   font-size: 0.72rem;
   font-weight: 700;
   color: #fff;
   border: 1px solid rgba(255, 255, 255, 0.55);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.24rem;
+}
+
+.chip-icon {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.6);
 }
 
 .resource-chip.wood {

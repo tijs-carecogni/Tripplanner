@@ -1,6 +1,12 @@
 const RESOURCES = ["wood", "brick", "sheep", "wheat", "ore"];
 const RESOURCE_SHORT = { wood: "Wd", brick: "Br", sheep: "Sh", wheat: "Wh", ore: "Or" };
-const RESOURCE_ICON = { wood: "🪵", brick: "🧱", sheep: "🐑", wheat: "🌾", ore: "⛰️" };
+const RESOURCE_ICON_PATH = {
+  wood: "./assets/icons/resource-wood.svg",
+  brick: "./assets/icons/resource-brick.svg",
+  sheep: "./assets/icons/resource-sheep.svg",
+  wheat: "./assets/icons/resource-wheat.svg",
+  ore: "./assets/icons/resource-ore.svg",
+};
 const RESOURCE_COLORS = {
   wood: "#2f8f3b",
   brick: "#c66536",
@@ -32,10 +38,10 @@ const COSTS = {
 };
 
 const PLAYER_CONFIG = [
-  { name: "You", color: "#f94144", isHuman: true },
-  { name: "Pioneer AI", color: "#577590", isHuman: false },
-  { name: "Sage AI", color: "#f9c74f", isHuman: false },
-  { name: "Vector AI", color: "#43aa8b", isHuman: false },
+  { name: "You", color: "#f94144", isHuman: true, avatar: "./assets/avatars/avatar-human.svg" },
+  { name: "Pioneer AI", color: "#577590", isHuman: false, avatar: "./assets/avatars/avatar-pioneer.svg" },
+  { name: "Sage AI", color: "#f9c74f", isHuman: false, avatar: "./assets/avatars/avatar-sage.svg" },
+  { name: "Vector AI", color: "#43aa8b", isHuman: false, avatar: "./assets/avatars/avatar-vector.svg" },
 ];
 
 const DEV_CARD_TYPES = ["knight", "roadBuilding", "yearOfPlenty", "monopoly"];
@@ -397,6 +403,7 @@ class ColonistFullGame {
       name: config.name,
       color: config.color,
       isHuman: config.isHuman,
+      avatar: config.avatar,
       resources: makeEmptyResources(),
       roads: new Set(),
       settlements: new Set(),
@@ -1481,7 +1488,7 @@ class ColonistFullGame {
     ctx.font = "700 10px Inter, sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    const label = hex.resource === "desert" ? "DES" : `${RESOURCE_ICON[hex.resource]} ${RESOURCE_SHORT[hex.resource]}`;
+    const label = hex.resource === "desert" ? "DES" : RESOURCE_SHORT[hex.resource];
     ctx.fillStyle = "rgba(20, 52, 86, 0.75)";
     ctx.fillText(label, hex.center.x, hex.center.y + 32);
 
@@ -1722,21 +1729,19 @@ class ColonistFullGame {
       if (this.longestRoadHolder === idx) badges.push("Longest Road");
       if (this.largestArmyHolder === idx) badges.push("Largest Army");
       if (player.isHuman) badges.push("Human");
-      const initials = player.name
-        .split(" ")
-        .map((part) => part.charAt(0))
-        .join("")
-        .slice(0, 2)
-        .toUpperCase();
       const vpPercent = Math.min(100, Math.round((player.victoryPoints / WINNING_POINTS) * 100));
       const resourceChips = RESOURCES.map(
-        (resource) => `<span class="resource-chip ${resource}">${RESOURCE_ICON[resource]} ${player.resources[resource]}</span>`,
+        (resource) =>
+          `<span class="resource-chip ${resource}">
+            <img class="chip-icon" src="${RESOURCE_ICON_PATH[resource]}" alt="${resource}" />
+            ${player.resources[resource]}
+          </span>`,
       ).join("");
 
       card.innerHTML = `
         <div class="player-row">
           <div class="player-head">
-            <span class="player-avatar" style="background:${player.color}">${initials}</span>
+            <img class="player-avatar" src="${player.avatar}" alt="${player.name} avatar" />
             <span class="player-name" style="color:${player.color}">${player.name}</span>
           </div>
           <span class="vp-badge">${player.victoryPoints} VP</span>
@@ -1762,10 +1767,19 @@ class ColonistFullGame {
 
     const renderMini = (player, container) => {
       if (!container || !player) return;
-      const res = RESOURCES.map((resource) => `${RESOURCE_ICON[resource]} ${player.resources[resource]}`).join(" ");
+      const res = RESOURCES.map(
+        (resource) =>
+          `<span class="resource-chip ${resource}">
+            <img class="chip-icon" src="${RESOURCE_ICON_PATH[resource]}" alt="${resource}" />
+            ${player.resources[resource]}
+          </span>`,
+      ).join("");
       container.innerHTML = `
         <div class="mini-player-row">
-          <span class="mini-player-name" style="color:${player.color}">${player.name}</span>
+          <span class="mini-player-identity">
+            <img class="mini-player-avatar" src="${player.avatar}" alt="${player.name} avatar" />
+            <span class="mini-player-name" style="color:${player.color}">${player.name}</span>
+          </span>
           <strong>${player.victoryPoints} VP</strong>
         </div>
         <div class="mini-player-row">Road ${player.roads.size} · Settle ${player.settlements.size} · City ${player.cities.size}</div>
