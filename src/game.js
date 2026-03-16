@@ -1341,27 +1341,21 @@ class ColonistFullGame {
     const ctx = this.ctx;
     const { width, height } = this.canvas;
 
-    const ocean = ctx.createLinearGradient(0, 0, 0, height);
-    ocean.addColorStop(0, "#123455");
-    ocean.addColorStop(0.42, "#0f2f4d");
-    ocean.addColorStop(1, "#102740");
-    ctx.fillStyle = ocean;
+    const sky = ctx.createLinearGradient(0, 0, 0, height);
+    sky.addColorStop(0, "#dbf0ff");
+    sky.addColorStop(0.55, "#c8e6ff");
+    sky.addColorStop(1, "#d7ecff");
+    ctx.fillStyle = sky;
     ctx.fillRect(0, 0, width, height);
 
-    const glow = ctx.createRadialGradient(width * 0.33, height * 0.3, 30, width * 0.38, height * 0.45, 420);
-    glow.addColorStop(0, "rgba(115, 212, 255, 0.20)");
-    glow.addColorStop(1, "rgba(115, 212, 255, 0)");
-    ctx.fillStyle = glow;
-    ctx.fillRect(0, 0, width, height);
-
-    ctx.strokeStyle = "rgba(170, 222, 255, 0.08)";
+    ctx.strokeStyle = "rgba(94, 151, 206, 0.16)";
     ctx.lineWidth = 1;
-    for (let i = 0; i < 11; i += 1) {
-      const y = height * 0.22 + i * 42 + ((this.turn + i) % 3) * 2;
+    for (let i = 0; i < 12; i += 1) {
+      const y = height * 0.1 + i * 54 + ((this.turn + i) % 3) * 2;
       ctx.beginPath();
       ctx.moveTo(0, y);
       for (let x = 0; x <= width; x += 34) {
-        const wave = Math.sin((x + i * 20) / 46) * 3;
+        const wave = Math.sin((x + i * 20) / 70) * 4;
         ctx.lineTo(x, y + wave);
       }
       ctx.stroke();
@@ -1408,20 +1402,28 @@ class ColonistFullGame {
 
   drawHex(hex) {
     const ctx = this.ctx;
+    const tileStyle = {
+      wood: "#5aad54",
+      brick: "#cf7448",
+      sheep: "#95d66f",
+      wheat: "#e8c457",
+      ore: "#9ea9b8",
+      desert: "#e2cb8d",
+    };
     this.drawHexPath(hex.corners);
     ctx.save();
-    ctx.shadowColor = "rgba(5, 11, 19, 0.55)";
-    ctx.shadowBlur = 9;
-    ctx.shadowOffsetY = 4;
-    ctx.fillStyle = RESOURCE_COLORS[hex.resource];
+    ctx.shadowColor = "rgba(38, 73, 106, 0.32)";
+    ctx.shadowBlur = 7;
+    ctx.shadowOffsetY = 3;
+    ctx.fillStyle = tileStyle[hex.resource] || RESOURCE_COLORS[hex.resource];
     ctx.fill();
     ctx.restore();
 
     this.drawHexPath(hex.corners);
     const surface = ctx.createLinearGradient(hex.center.x - 38, hex.center.y - 38, hex.center.x + 38, hex.center.y + 38);
-    surface.addColorStop(0, "rgba(255,255,255,0.20)");
+    surface.addColorStop(0, "rgba(255,255,255,0.27)");
     surface.addColorStop(0.45, "rgba(255,255,255,0)");
-    surface.addColorStop(1, "rgba(0,0,0,0.20)");
+    surface.addColorStop(1, "rgba(0,0,0,0.14)");
     ctx.fillStyle = surface;
     ctx.fill();
 
@@ -1440,14 +1442,14 @@ class ColonistFullGame {
     ctx.restore();
 
     this.drawHexPath(hex.corners);
-    ctx.strokeStyle = "rgba(0, 11, 22, 0.46)";
-    ctx.lineWidth = 2.3;
+    ctx.strokeStyle = "rgba(219, 239, 255, 0.95)";
+    ctx.lineWidth = 3;
     ctx.stroke();
 
     if (hex.number != null) {
       ctx.save();
-      ctx.shadowColor = "rgba(0, 0, 0, 0.45)";
-      ctx.shadowBlur = 7;
+      ctx.shadowColor = "rgba(58, 78, 101, 0.35)";
+      ctx.shadowBlur = 6;
       ctx.shadowOffsetY = 2;
       ctx.beginPath();
       ctx.arc(hex.center.x, hex.center.y, 20, 0, Math.PI * 2);
@@ -1473,10 +1475,11 @@ class ColonistFullGame {
     }
 
     ctx.fillStyle = "rgba(239, 248, 255, 0.72)";
-    ctx.font = "600 10px Inter, sans-serif";
+    ctx.font = "700 10px Inter, sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     const label = hex.resource === "desert" ? "DES" : RESOURCE_SHORT[hex.resource];
+    ctx.fillStyle = "rgba(20, 52, 86, 0.75)";
     ctx.fillText(label, hex.center.x, hex.center.y + 32);
 
     if (hex.id === this.robberHexId) {
@@ -1676,13 +1679,13 @@ class ColonistFullGame {
     const active = this.currentPlayer;
     const phase = this.phase === "pre_roll" ? "Roll" : this.phase === "main" ? "Main" : "Over";
     this.drawRoundedRect(20, 18, 250, 66, 10);
-    ctx.fillStyle = "rgba(10, 20, 34, 0.72)";
+    ctx.fillStyle = "rgba(255, 255, 255, 0.93)";
     ctx.fill();
-    ctx.strokeStyle = "rgba(153, 211, 255, 0.35)";
+    ctx.strokeStyle = "rgba(102, 156, 211, 0.55)";
     ctx.lineWidth = 1.2;
     ctx.stroke();
 
-    ctx.fillStyle = "#d7ecff";
+    ctx.fillStyle = "#174372";
     ctx.font = "700 14px Inter, sans-serif";
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
@@ -1692,11 +1695,11 @@ class ColonistFullGame {
     ctx.fillText(`Active: ${active.name}`, 32, 60);
 
     this.drawRoundedRect(228, 28, 34, 24, 7);
-    ctx.fillStyle = "rgba(223, 236, 250, 0.94)";
+    ctx.fillStyle = "rgba(238, 247, 255, 0.97)";
     ctx.fill();
-    ctx.strokeStyle = "rgba(35, 50, 67, 0.42)";
+    ctx.strokeStyle = "rgba(68, 111, 155, 0.42)";
     ctx.stroke();
-    ctx.fillStyle = "#1c2a3c";
+    ctx.fillStyle = "#19416c";
     ctx.font = "700 14px Inter, sans-serif";
     ctx.textAlign = "center";
     ctx.fillText(String(this.lastRoll ?? "-"), 245, 40.5);
@@ -1716,6 +1719,13 @@ class ColonistFullGame {
       if (this.longestRoadHolder === idx) badges.push("Longest Road");
       if (this.largestArmyHolder === idx) badges.push("Largest Army");
       if (player.isHuman) badges.push("Human");
+      const initials = player.name
+        .split(" ")
+        .map((part) => part.charAt(0))
+        .join("")
+        .slice(0, 2)
+        .toUpperCase();
+      const vpPercent = Math.min(100, Math.round((player.victoryPoints / WINNING_POINTS) * 100));
       const resourceChips = RESOURCES.map(
         (resource) =>
           `<span class="resource-chip ${resource}">${RESOURCE_SHORT[resource]} ${player.resources[resource]}</span>`,
@@ -1723,9 +1733,13 @@ class ColonistFullGame {
 
       card.innerHTML = `
         <div class="player-row">
-          <span class="player-name" style="color:${player.color}">${player.name}</span>
-          <span>${player.victoryPoints} VP</span>
+          <div class="player-head">
+            <span class="player-avatar" style="background:${player.color}">${initials}</span>
+            <span class="player-name" style="color:${player.color}">${player.name}</span>
+          </div>
+          <span class="vp-badge">${player.victoryPoints} VP</span>
         </div>
+        <div class="vp-track"><div class="vp-fill" style="width:${vpPercent}%"></div></div>
         <div class="resource-line">Road ${player.roads.size} · Settle ${player.settlements.size} · City ${player.cities.size}</div>
         <div class="resource-chips">${resourceChips}</div>
         <div class="resource-line">Dev VP ${player.devVictoryPoints} · Knights ${player.knightsPlayed} · LR ${player.longestRoadLength}</div>
