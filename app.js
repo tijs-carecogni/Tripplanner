@@ -29,6 +29,32 @@ import {
 const els = {};
 let map;
 
+function spawnConfetti(originEl) {
+  const rect = originEl.getBoundingClientRect();
+  const cx = rect.left + rect.width / 2;
+  const cy = rect.top + rect.height / 2;
+  const colors = ["#f472b6", "#facc15", "#34d399", "#60a5fa", "#c084fc", "#fb923c"];
+  for (let i = 0; i < 18; i++) {
+    const dot = document.createElement("div");
+    dot.style.cssText = `
+      position:fixed; z-index:9999; pointer-events:none;
+      width:${4 + Math.random() * 4}px; height:${4 + Math.random() * 4}px;
+      border-radius:${Math.random() > 0.5 ? "50%" : "2px"};
+      background:${colors[i % colors.length]};
+      left:${cx}px; top:${cy}px;
+      opacity:1; transition: all ${0.5 + Math.random() * 0.4}s cubic-bezier(.15,.8,.3,1);
+    `;
+    document.body.appendChild(dot);
+    requestAnimationFrame(() => {
+      dot.style.left = `${cx + (Math.random() - 0.5) * 120}px`;
+      dot.style.top = `${cy - 30 - Math.random() * 80}px`;
+      dot.style.opacity = "0";
+      dot.style.transform = `rotate(${Math.random() * 360}deg) scale(0.3)`;
+    });
+    setTimeout(() => dot.remove(), 900);
+  }
+}
+
 function getPlaceImageUrl(title, city, width = 400, height = 240) {
   const query = encodeURIComponent(`${title} ${city || ""} travel`.trim());
   return `https://loremflickr.com/${width}/${height}/${query}?lock=${hashCode(title + (city || ""))}`;
@@ -624,7 +650,7 @@ function bindEvents() {
   els.itineraryList.addEventListener("click", handleItineraryAction);
   els.refreshSuggestionsBtn.addEventListener("click", () => {
     renderSuggestions();
-    setStatus("Suggestions refreshed from memory.");
+    setStatus("Fresh picks just for you!");
   });
   els.customSuggestionForm.addEventListener("submit", handleAddCustomSuggestion);
   els.suggestionList.addEventListener("click", handleSuggestionAction);
@@ -703,6 +729,7 @@ function renderAll() {
   renderExperienceVisuals();
   renderMap();
   applyDOMHighlight();
+  if (typeof lucide !== "undefined") lucide.createIcons();
 }
 
 function loadSidebarCollapseState() {
@@ -775,7 +802,8 @@ function setupSidebarCollapsibles() {
 
     const headingLabel = heading.textContent.trim().toLowerCase();
     const keepOpenByDefault = headingLabel.includes("trip chat")
-      || headingLabel.includes("conversation copilot");
+      || headingLabel.includes("conversation copilot")
+      || headingLabel.includes("where to next");
     const defaultCollapsed = keepOpenByDefault ? false : (isMobileViewport ? index >= 1 : index >= 3);
     const initialCollapsed = typeof collapseState[cardKey] === "boolean"
       ? collapseState[cardKey]
@@ -1038,7 +1066,7 @@ function handleSaveProfile(event) {
   saveState();
   renderMemorySummary();
   renderSuggestions();
-  setStatus("Traveler profile and memory preferences saved.");
+  setStatus("\u2728 Got it! Your travel personality is saved.");
 }
 
 function handleSaveTripContext(event) {
@@ -1060,7 +1088,7 @@ function handleSaveTripContext(event) {
   applyLikedExamplesToMemory(likedExamples);
   saveState();
   renderTripContextSummary();
-  setStatus("Trip context saved for itinerary generation.");
+  setStatus("Trip context locked in! Ready to plan.");
 }
 
 function handleSaveExpertSettings(event) {
@@ -1146,7 +1174,7 @@ function renderStartOutputSummary() {
 
   if (!chatCandidates.length && !timelineItems.length) {
     els.startOutputSummary.innerHTML = `
-      <div style="color:#6b7280">Start chatting to generate suggestions and build your itinerary.</div>
+      <div style="color:#6b7280">Start chatting and watch your trip come together here!</div>
     `;
     return;
   }
@@ -1268,7 +1296,7 @@ function pushConversationMessage(role, text, options = []) {
 
 function renderConversation() {
   if (!state.conversation.messages.length) {
-    els.conversationTranscript.innerHTML = "<div class='chat-message assistant'>No conversation yet.</div>";
+    els.conversationTranscript.innerHTML = "<div class='chat-message assistant'>Hey! Tell me where you want to go and I'll start building your trip.</div>";
     return;
   }
   els.conversationTranscript.innerHTML = state.conversation.messages
@@ -1320,13 +1348,22 @@ function renderConversationInsights() {
   const mode = state.conversation.mode || "main-planning";
   const sideTrack = state.conversation.sideTrackTopic || "";
   const generalStrategy = state.outlineDraft.generalStrategy?.title || "none";
-  const focusedBlock = state.outlineDraft.focusedBlockId || "none";
   const tweakCount = Object.keys(state.outlineDraft.blockTweaks || {}).length;
+
+  const likeTags = likeEntries.map(([tag]) => `<span class="chip chip-like">${htmlEscape(tag)}</span>`).join("");
+  const dislikeTags = dislikeEntries.map(([tag]) => `<span class="chip chip-dislike">${htmlEscape(tag)}</span>`).join("");
+  const modeLabel = mode === "side-track" && sideTrack ? `Side-track: ${htmlEscape(sideTrack)}` : htmlEscape(mode.replace(/-/g, " "));
+
   els.conversationInsights.innerHTML = `
-    <div><strong>Conversation mode:</strong> ${htmlEscape(mode)}${sideTrack ? ` (${htmlEscape(sideTrack)})` : ""}</div>
-    <div><strong>General strategy:</strong> ${htmlEscape(generalStrategy)} | <strong>Focused point:</strong> ${htmlEscape(focusedBlock)} | <strong>Point tweaks:</strong> ${tweakCount}</div>
-    <div><strong>Learned likes:</strong> ${htmlEscape(likeEntries.map(([tag]) => tag).join(", ") || "none yet")}</div>
-    <div><strong>Learned dislikes:</strong> ${htmlEscape(dislikeEntries.map(([tag]) => tag).join(", ") || "none yet")}</div>
+    <div class="insights-strip">
+      <span class="insights-mode">${modeLabel}</span>
+      ${generalStrategy !== "none" ? `<span class="insights-strategy">${htmlEscape(generalStrategy)}</span>` : ""}
+      ${tweakCount ? `<span class="insights-tweaks">${tweakCount} tweak${tweakCount > 1 ? "s" : ""}</span>` : ""}
+    </div>
+    ${likeTags || dislikeTags ? `<div class="insights-tags">
+      ${likeTags ? `<span class="insights-label">Likes</span> ${likeTags}` : ""}
+      ${dislikeTags ? `<span class="insights-label">Avoids</span> ${dislikeTags}` : ""}
+    </div>` : ""}
   `;
 }
 
@@ -1391,7 +1428,7 @@ function addSoftPoiFromSource(source, { sourceKind, type, notes, startHint }) {
 
 function renderSoftPois() {
   if (!state.softPois.length) {
-    els.softPoiList.innerHTML = "<li class='list-item'>No tentative POIs yet.</li>";
+    els.softPoiList.innerHTML = "<li class='list-item'>Interesting spots will appear here as you chat.</li>";
     return;
   }
   els.softPoiList.innerHTML = state.softPois
@@ -1574,7 +1611,7 @@ async function handleConversationSubmit(event) {
     pushConversationMessage("assistant", fullMessage || "Noted. Tell me more so I can tune your itinerary.", reply.options || []);
     saveState();
     renderAll();
-    setStatus("Conversation updated. Feedback on options to fine-tune memory.");
+    setStatus("Nice! I've got some ideas for you. What do you think?");
   } catch (error) {
     console.error(error);
     pushConversationMessage("assistant", "I could not generate a rich response right now. Tell me one thing you love and one thing you want to avoid.");
@@ -1642,7 +1679,7 @@ function handleGenerateRoughOutline() {
   );
   saveState();
   renderAll();
-  setStatus("Generated rough outline and requested feedback.");
+  setStatus("Here's a rough sketch of your trip! Tweak away.");
 }
 
 function handleSuggestFillStrategies(targetBlockId = "") {
@@ -1920,7 +1957,7 @@ function heuristicConversationReply(userText) {
     : "Which options feel closest to your taste, and what should I avoid next?";
 
   return {
-    assistantMessage: "I used your current preferences to shortlist options. Give feedback with Love/Maybe/No so I can refine memory.",
+    assistantMessage: "Here are some ideas based on your taste! Hit Love on the ones that excite you.",
     followUpQuestion: question,
     mode,
     options: pool,
@@ -1996,7 +2033,14 @@ async function handleConversationAction(event) {
     const feedback = button.dataset.feedback;
     const delta = feedback === "love" ? 2 : feedback === "maybe" ? 1 : -2;
     applyConversationPreference(option.tags, delta, option.title);
-    pushConversationMessage("assistant", `Noted: ${feedback} for "${option.title}". I updated your memory and will tune next suggestions.`);
+    if (feedback === "love") {
+      spawnConfetti(button);
+      pushConversationMessage("assistant", `Loved "${option.title}"! I'll find more like this.`);
+    } else if (feedback === "maybe") {
+      pushConversationMessage("assistant", `Noted "${option.title}" as a maybe. I'll keep it in mind.`);
+    } else {
+      pushConversationMessage("assistant", `Skipping "${option.title}". I'll avoid similar picks.`);
+    }
     saveState();
     renderAll();
     return;
@@ -2187,7 +2231,7 @@ async function handleAddHardPoint(event) {
     return;
   }
 
-  setStatus("Geocoding hard point...");
+  setStatus("Pinning that on the map...");
   try {
     const geo = await geocodeLocation(location);
     const hardPoint = {
@@ -2997,7 +3041,7 @@ function getPersonalizedSuggestions(limit = 12) {
 function renderSuggestions() {
   const personalized = getPersonalizedSuggestions(getExpertSuggestionCount(12));
   if (!personalized.length) {
-    els.suggestionList.innerHTML = "<p>No suggestions available.</p>";
+    els.suggestionList.innerHTML = "<p>\uD83C\uDF1F Start chatting and I'll learn what you love. Personalized picks will show up here.</p>";
     return;
   }
 
@@ -3180,7 +3224,7 @@ async function handlePlaceSearch(event) {
     return;
   }
 
-  setStatus("Searching main locations and trip ideas...");
+  setStatus("Searching for places...");
   try {
     const geo = await geocodeLocation(location);
     const searches = [];
@@ -3213,7 +3257,7 @@ async function handleEventSearch(event) {
     return;
   }
 
-  setStatus("Searching events (seeded + nearby venues)...");
+  setStatus("Searching for events and local happenings...");
   try {
     const geo = await geocodeLocation(location);
     const seeded = getSeedEventsNear(geo.lat, geo.lng, date, radiusKm);
@@ -3439,7 +3483,7 @@ async function getDetailPlacesNear(lat, lng, radiusKm) {
 
 function renderPlaceResults() {
   if (!state.lastPlaces.length) {
-    els.placeResults.innerHTML = "<div class='result-card'>No location/trip search yet.</div>";
+    els.placeResults.innerHTML = "<div class='result-card'>Search a city to discover hidden gems and popular spots.</div>";
     return;
   }
 
@@ -4080,7 +4124,7 @@ function normalizeLlmResults(rawItems, { location, date, resultCount }) {
 
 function renderLlmResults() {
   if (!state.lastLlmResults.length) {
-    els.llmSearchResults.innerHTML = "<div class='result-card'>No LLM search results yet.</div>";
+    els.llmSearchResults.innerHTML = "<div class='result-card'>Ask me anything &mdash; I'll find unique places and experiences.</div>";
     return;
   }
 
@@ -4213,7 +4257,7 @@ async function ensureCoordinatesForGenericItem(item) {
 
 function renderEventResults() {
   if (!state.lastEvents.length) {
-    els.eventResults.innerHTML = "<div class='result-card'>No events searched yet.</div>";
+    els.eventResults.innerHTML = "<div class='result-card'>Pick a city and date to find live events, markets, and local moments.</div>";
     return;
   }
 
@@ -5345,6 +5389,7 @@ function init() {
   ensureConversationInitialized();
   renderAll();
   setStatus("MindTrip planner ready. Start in chat, then anchor hard points and refine recommendations.");
+  if (typeof lucide !== "undefined") lucide.createIcons();
   void loadCloudState({ initial: true });
 }
 

@@ -50,9 +50,9 @@
   --color-brand-600: #6634a8;
   --color-brand-700: #52278a;
 
-  --color-shell-bg: #32243f;
-  --color-shell-elevated: #46315a;
-  --color-shell-border: rgba(255, 255, 255, 0.14);
+  --color-shell-bg: #ffffff;
+  --color-shell-elevated: #f1f5f9;
+  --color-shell-border: rgba(0, 0, 0, 0.06);
 
   --color-border-soft: rgba(148, 163, 184, 0.28);
   --color-border-default: #dbe2ea;
@@ -120,9 +120,9 @@
   --color-brand-600: #8157c8;
   --color-brand-700: #6841aa;
 
-  --color-shell-bg: #1f1828;
-  --color-shell-elevated: #2d2139;
-  --color-shell-border: rgba(255, 255, 255, 0.2);
+  --color-shell-bg: #0f172a;
+  --color-shell-elevated: #1e293b;
+  --color-shell-border: rgba(255, 255, 255, 0.12);
 
   --color-border-soft: rgba(101, 131, 182, 0.42);
   --color-border-default: #365179;

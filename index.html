@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
   <link rel="stylesheet" href="./theme.css">
   <link rel="stylesheet" href="./styles.css">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
 </head>
 <body>
   <header class="topbar">
@@ -19,10 +20,10 @@
       </span>
       <div>
         <h1>TripMind</h1>
-        <p class="topbar-subtitle">Chat-first trip planner with hard-point anchoring</p>
+        <p class="topbar-subtitle">Dream it, chat it, plan it, go.</p>
       </div>
     </div>
-    <div class="status" id="statusMessage" aria-live="polite">Ready</div>
+    <div class="status" id="statusMessage" aria-live="polite">Ready to plan!</div>
   </header>
 
   <nav id="mobileViewTabs" class="mobile-view-tabs" aria-label="Mobile section switcher">
@@ -31,10 +32,10 @@
   </nav>
 
   <nav id="topLevelTabs" class="top-level-tabs" aria-label="Primary app navigation">
-    <button id="topTabStart" type="button" data-top-tab="start" class="is-active" aria-pressed="true">Start</button>
-    <button id="topTabPlan" type="button" data-top-tab="plan" aria-pressed="false">Plan</button>
-    <button id="topTabExplore" type="button" data-top-tab="explore" aria-pressed="false">Discover</button>
-    <button id="topTabSettings" type="button" data-top-tab="settings" aria-pressed="false">Settings</button>
+    <button id="topTabStart" type="button" data-top-tab="start" class="is-active" aria-pressed="true"><i data-lucide="message-circle"></i> Chat</button>
+    <button id="topTabPlan" type="button" data-top-tab="plan" aria-pressed="false"><i data-lucide="map"></i> Plan</button>
+    <button id="topTabExplore" type="button" data-top-tab="explore" aria-pressed="false"><i data-lucide="compass"></i> Discover</button>
+    <button id="topTabSettings" type="button" data-top-tab="settings" aria-pressed="false"><i data-lucide="sliders-horizontal"></i> Settings</button>
   </nav>
 
   <main class="layout">
@@ -217,21 +218,23 @@
       </section>
 
       <section class="card chat-card" data-tab-panel="start">
-        <h2>Trip Chat</h2>
-        <p class="hint">Describe your destination, dates, and vibe. The planner learns your taste as you go.</p>
+        <h2><i data-lucide="plane" class="heading-icon"></i> Where to next?</h2>
+        <p class="hint">Just tell me about your dream trip. I'll figure out the rest.</p>
+        <p class="quick-prompts-label">Try asking about...</p>
         <div id="quickPrompts" class="chip-list quick-prompts">
-          <button type="button" class="chip quick-prompt" data-prompt="Planning a trip to Japan in April, 2 weeks, interested in architecture and food">Japan trip idea</button>
+          <button type="button" class="chip quick-prompt" data-prompt="Planning a trip to Japan in April, 2 weeks, interested in architecture and food">Japan adventure</button>
           <button type="button" class="chip quick-prompt" data-prompt="I want a relaxed beach holiday in Southeast Asia for 10 days">Beach getaway</button>
-          <button type="button" class="chip quick-prompt" data-prompt="Weekend city break in Europe focused on art and nightlife">European city break</button>
+          <button type="button" class="chip quick-prompt" data-prompt="Weekend city break in Europe focused on art and nightlife">Euro city break</button>
+          <button type="button" class="chip quick-prompt" data-prompt="Road trip through the American Southwest, 2 weeks, hiking and stargazing">Southwest road trip</button>
         </div>
         <form id="conversationForm" class="chat-input-group">
-          <textarea id="conversationInput" rows="3" placeholder="Tell me about your trip — destination, dates, what you love, what to avoid..." required></textarea>
+          <textarea id="conversationInput" rows="3" placeholder="I'm dreaming of... (destination, dates, vibe, must-dos)" required></textarea>
           <button type="submit" class="chat-send-btn" aria-label="Send message">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
           </button>
         </form>
         <div class="chat-secondary-actions">
-          <button id="workflowNextBtn" type="button" class="btn-secondary">Run next step</button>
+          <button id="workflowNextBtn" type="button" class="btn-secondary"><i data-lucide="zap"></i> Next step</button>
           <button id="chatMoreActionsBtn" type="button" class="btn-ghost">More actions &#9662;</button>
         </div>
         <div id="chatMoreActionsPanel" class="chat-more-panel" hidden>
@@ -254,8 +257,8 @@
       </section>
 
       <section class="card" data-tab-panel="start">
-        <h2>Fixed Bookings / Hard Points</h2>
-        <p class="hint">Add flights, hotels, and non-negotiable commitments as trip anchors.</p>
+        <h2><i data-lucide="map-pin" class="heading-icon"></i> Locked-in bookings</h2>
+        <p class="hint">Flights, hotels, tickets — the stuff that can't move.</p>
         <form id="hardPointForm" class="stack">
           <label>
             Title
@@ -529,24 +532,24 @@
 
     <section class="workspace">
       <section class="card start-overview-card" data-tab-panel="start">
-        <h2>Trip Overview</h2>
+        <h2><i data-lucide="globe" class="heading-icon"></i> Your trip so far</h2>
         <div class="overview-steps">
-          <span class="overview-step is-active" data-step="chat">1. Chat your trip</span>
-          <span class="overview-step" data-step="anchor">2. Add anchors</span>
-          <span class="overview-step" data-step="refine">3. Refine on map</span>
+          <span class="overview-step is-active" data-step="chat"><i data-lucide="message-circle"></i> Chat it</span>
+          <span class="overview-step" data-step="anchor"><i data-lucide="map-pin"></i> Lock anchors</span>
+          <span class="overview-step" data-step="refine"><i data-lucide="compass"></i> Explore &amp; refine</span>
         </div>
         <div id="chatFlowSummary" class="memory-summary"></div>
         <div id="startOutputSummary" class="memory-summary"></div>
         <div class="overview-actions">
-          <button id="goPlanBtn" type="button">Open plan view</button>
+          <button id="goPlanBtn" type="button"><i data-lucide="map"></i> See the plan</button>
           <button id="goPlanFromOutputBtn" type="button" class="btn-secondary">Refine on map</button>
-          <button id="goSettingsBtn" type="button" class="btn-ghost">Advanced settings</button>
+          <button id="goSettingsBtn" type="button" class="btn-ghost"><i data-lucide="sliders-horizontal"></i> Advanced</button>
         </div>
       </section>
 
       <section id="visualBoardCard" class="card visual-board-card" data-tab-panel="plan">
         <div class="section-header">
-          <h2>Trip Visual Board (Step 4: Refine)</h2>
+          <h2><i data-lucide="palette" class="heading-icon"></i> Trip Vibe Board</h2>
           <button id="toggleVisualBoardBtn" type="button">Hide visuals</button>
         </div>
         <div id="visualBoardBody" class="visual-board-body">
@@ -571,24 +574,24 @@
       </nav>
 
       <section class="card map-card premium-panel" data-tab-panel="plan">
-        <h2>Trip Map</h2>
+        <h2><i data-lucide="map" class="heading-icon"></i> Trip Map</h2>
         <div id="map" aria-label="Trip map"></div>
         <div id="mapLegend" class="map-legend"></div>
       </section>
 
       <section class="card itinerary-card premium-panel" data-tab-panel="plan">
-        <h2>Itinerary View</h2>
+        <h2><i data-lucide="list-ordered" class="heading-icon"></i> Itinerary</h2>
         <div id="itineraryList" class="itinerary"></div>
       </section>
 
       <section class="card suggestions-card premium-panel" data-tab-panel="plan">
         <div class="section-header">
-          <h2>Smart Recommendations</h2>
-          <button id="refreshSuggestionsBtn" type="button">Refresh personalized suggestions</button>
+          <h2><i data-lucide="sparkles" class="heading-icon"></i> Picks for you</h2>
+          <button id="refreshSuggestionsBtn" type="button"><i data-lucide="refresh-cw"></i> Refresh</button>
         </div>
-        <p class="hint">Rate suggestions so the planner remembers your taste.</p>
+        <p class="hint">Rate these so I get better at knowing what you'll love.</p>
         <form id="customSuggestionForm" class="stack inline">
-          <input id="customSuggestionTitle" type="text" placeholder="Add custom idea (e.g. rooftop jazz night)" required>
+          <input id="customSuggestionTitle" type="text" placeholder="Your own idea (rooftop jazz night, secret ramen spot...)" required>
           <input id="customSuggestionCity" type="text" placeholder="City" required>
           <input id="customSuggestionTags" type="text" placeholder="tags: music,nightlife">
           <button type="submit">Add custom suggestion</button>
@@ -600,5 +603,6 @@
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script src="./app.js" type="module"></script>
+  <script>window.addEventListener("load", function() { if (typeof lucide !== "undefined") lucide.createIcons(); });</script>
 </body>
 </html>
