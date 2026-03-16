@@ -33,7 +33,11 @@ let state = loadState();
 const interactionController = createHighlightController();
 const SIDEBAR_COLLAPSE_STORAGE_KEY = "mindtrip_sidebar_collapse_v1";
 const MOBILE_VIEW_STORAGE_KEY = "mindtrip_mobile_view_v1";
+const MOBILE_PLAN_VIEW_STORAGE_KEY = "mindtrip_mobile_plan_view_v1";
+const VISUAL_BOARD_COLLAPSE_STORAGE_KEY = "mindtrip_visual_board_collapsed_v1";
+const ITINERARY_COLLAPSE_STORAGE_KEY = "mindtrip_itinerary_collapsed_days_v1";
 const segmentRouteGeometryCache = new Map();
+let itineraryCollapseState = loadItineraryCollapseState();
 
 function createDefaultState() {
   return {
@@ -200,6 +204,9 @@ function bindElements() {
     "mobileViewTabs",
     "mobileTabPlan",
     "mobileTabControls",
+    "mobilePlanTabs",
+    "mobilePlanMap",
+    "mobilePlanList",
     "profileForm",
     "profileName",
     "homeBase",
@@ -308,6 +315,10 @@ function bindElements() {
     "activityMixVisual",
     "tripPulseVisual",
     "possibleVisuals",
+    "visualVibeTags",
+    "visualBoardCard",
+    "visualBoardBody",
+    "toggleVisualBoardBtn",
     "mapLegend",
     "itineraryList",
     "refreshSuggestionsBtn",
@@ -347,6 +358,12 @@ function initMap() {
 function bindEvents() {
   if (els.mobileViewTabs) {
     els.mobileViewTabs.addEventListener("click", handleMobileViewToggle);
+  }
+  if (els.mobilePlanTabs) {
+    els.mobilePlanTabs.addEventListener("click", handleMobilePlanViewToggle);
+  }
+  if (els.toggleVisualBoardBtn) {
+    els.toggleVisualBoardBtn.addEventListener("click", handleToggleVisualBoard);
   }
   els.profileForm.addEventListener("submit", handleSaveProfile);
   els.tripContextForm.addEventListener("submit", handleSaveTripContext);
@@ -473,6 +490,37 @@ function saveSidebarCollapseState(stateMap) {
   localStorage.setItem(SIDEBAR_COLLAPSE_STORAGE_KEY, JSON.stringify(stateMap || {}));
 }
 
+function loadVisualBoardCollapsedState() {
+  try {
+    const stored = localStorage.getItem(VISUAL_BOARD_COLLAPSE_STORAGE_KEY);
+    if (stored === null) {
+      return window.matchMedia("(max-width: 1199px)").matches;
+    }
+    return stored === "1";
+  } catch {
+    return window.matchMedia("(max-width: 1199px)").matches;
+  }
+}
+
+function saveVisualBoardCollapsedState(collapsed) {
+  localStorage.setItem(VISUAL_BOARD_COLLAPSE_STORAGE_KEY, collapsed ? "1" : "0");
+}
+
+function loadItineraryCollapseState() {
+  try {
+    const raw = localStorage.getItem(ITINERARY_COLLAPSE_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveItineraryCollapseState(stateMap) {
+  localStorage.setItem(ITINERARY_COLLAPSE_STORAGE_KEY, JSON.stringify(stateMap || {}));
+}
+
 function setupSidebarCollapsibles() {
   const cards = Array.from(document.querySelectorAll(".sidebar .card"));
   if (!cards.length) return;
@@ -533,6 +581,63 @@ function applyMobileView(view) {
     els.mobileTabControls.classList.toggle("is-active", controlsActive);
     els.mobileTabControls.setAttribute("aria-pressed", controlsActive ? "true" : "false");
   }
+}
+
+function applyMobilePlanView(view) {
+  const normalized = view === "map" ? "map" : "list";
+  document.body.dataset.mobilePlanView = normalized;
+  if (els.mobilePlanMap) {
+    const active = normalized === "map";
+    els.mobilePlanMap.classList.toggle("is-active", active);
+    els.mobilePlanMap.setAttribute("aria-pressed", active ? "true" : "false");
+  }
+  if (els.mobilePlanList) {
+    const active = normalized === "list";
+    els.mobilePlanList.classList.toggle("is-active", active);
+    els.mobilePlanList.setAttribute("aria-pressed", active ? "true" : "false");
+  }
+}
+
+function initializeMobilePlanView() {
+  let savedView = "list";
+  try {
+    const stored = localStorage.getItem(MOBILE_PLAN_VIEW_STORAGE_KEY);
+    if (stored === "map" || stored === "list") savedView = stored;
+  } catch {
+    savedView = "list";
+  }
+  applyMobilePlanView(savedView);
+}
+
+function handleMobilePlanViewToggle(event) {
+  const button = event.target.closest("button[data-mobile-plan-view]");
+  if (!button) return;
+  const nextView = button.dataset.mobilePlanView === "map" ? "map" : "list";
+  applyMobilePlanView(nextView);
+  try {
+    localStorage.setItem(MOBILE_PLAN_VIEW_STORAGE_KEY, nextView);
+  } catch {
+    // ignore storage failures
+  }
+}
+
+function applyVisualBoardCollapsed(collapsed) {
+  if (!els.visualBoardCard || !els.visualBoardBody || !els.toggleVisualBoardBtn) return;
+  els.visualBoardCard.classList.toggle("is-collapsed", collapsed);
+  els.visualBoardBody.hidden = collapsed;
+  els.toggleVisualBoardBtn.textContent = collapsed ? "Show visuals" : "Hide visuals";
+  els.toggleVisualBoardBtn.setAttribute("aria-expanded", collapsed ? "false" : "true");
+}
+
+function initializeVisualBoardCollapsed() {
+  const collapsed = loadVisualBoardCollapsedState();
+  applyVisualBoardCollapsed(collapsed);
+}
+
+function handleToggleVisualBoard() {
+  const collapsed = !els.visualBoardCard.classList.contains("is-collapsed");
+  applyVisualBoardCollapsed(collapsed);
+  saveVisualBoardCollapsedState(collapsed);
 }
 
 function initializeMobileView() {
@@ -2166,28 +2271,51 @@ function renderItinerary() {
 
   const blocks = [];
   const useDayGrouping = state.expertSettings?.groupItineraryByDay !== false;
+  const dayGroups = [];
   let pointNumber = 1;
-  let currentDayKey = "";
-  for (let i = 0; i < timeline.length; i += 1) {
-    const point = timeline[i];
-    const dayKey = getItineraryDayKey(point.start);
-    if (useDayGrouping && dayKey !== currentDayKey) {
-      currentDayKey = dayKey;
-      const dayCount = timeline.filter((entry) => getItineraryDayKey(entry.start) === dayKey).length;
-      blocks.push(`
-        <article class="itinerary-day-header">
-          <div class="itinerary-day-title">${htmlEscape(formatItineraryDayLabel(dayKey))}</div>
-          <div class="meta">${dayCount} stop${dayCount === 1 ? "" : "s"}</div>
-        </article>
-      `);
+  timeline.forEach((point, index) => {
+    const dayKey = useDayGrouping ? getItineraryDayKey(point.start) : "timeline";
+    let group = dayGroups[dayGroups.length - 1];
+    if (!group || group.dayKey !== dayKey) {
+      group = { dayKey, points: [], segments: [] };
+      dayGroups.push(group);
     }
-    blocks.push(renderTimelinePointBlock(point, pointNumber));
+    group.points.push({ point, pointNumber });
     pointNumber += 1;
-    const next = timeline[i + 1];
+    const next = timeline[index + 1];
     if (next) {
-      blocks.push(renderTransitSegmentBlock(point, next));
+      group.segments.push({ from: point, to: next });
     }
-  }
+  });
+
+  dayGroups.forEach((group) => {
+    const collapsed = useDayGrouping && itineraryCollapseState[group.dayKey] === true;
+    const dayLabel = useDayGrouping ? formatItineraryDayLabel(group.dayKey) : "Timeline";
+    blocks.push(`
+      <article class="itinerary-day-header">
+        <div class="itinerary-day-title">${htmlEscape(dayLabel)}</div>
+        <div class="meta">${group.points.length} stop${group.points.length === 1 ? "" : "s"}</div>
+        ${useDayGrouping
+      ? `<button type="button" class="itinerary-day-toggle" data-action="toggle-day" data-day-key="${htmlEscape(group.dayKey)}">${collapsed ? "Expand" : "Collapse"}</button>`
+      : ""}
+      </article>
+    `);
+
+    const entries = [];
+    group.points.forEach((entry, idx) => {
+      entries.push(renderTimelinePointBlock(entry.point, entry.pointNumber));
+      const segment = group.segments[idx];
+      if (segment) entries.push(renderTransitSegmentBlock(segment.from, segment.to));
+    });
+
+    blocks.push(`
+      <section class="itinerary-day-body ${collapsed ? "is-collapsed" : ""}" data-day-key="${htmlEscape(group.dayKey)}">
+        <div class="itinerary-thread">
+          ${entries.join("")}
+        </div>
+      </section>
+    `);
+  });
 
   els.itineraryList.innerHTML = blocks.join("");
 }
@@ -2199,10 +2327,19 @@ function renderTimelinePointBlock(point, pointNumber) {
   } else if (String(point.sourceKind || "").startsWith("route-node:")) {
     lockLabel = "Route node (main stop)";
   }
+  const typeName = point.type || point.sourceKind || "stop";
+  const typeIcon = point.locked
+    ? iconSvg("lock", "point-type-icon")
+    : String(point.sourceKind || "").startsWith("route-node:")
+      ? iconSvg("pin", "point-type-icon")
+      : iconSvg("spark", "point-type-icon");
   return `
-    <article class="itinerary-stop" data-entity-key="${htmlEscape(point.id)}" data-entity-link="${htmlEscape(buildEntityLinkKey(point))}">
-      <strong>${pointNumber}. ${htmlEscape(point.title)}</strong>
-      <div class="meta">${lockLabel} (${htmlEscape(point.type || point.sourceKind || "stop")})</div>
+    <article class="itinerary-event itinerary-stop ${point.locked ? "hard-point" : "soft-point"}" data-entity-key="${htmlEscape(point.id)}" data-entity-link="${htmlEscape(buildEntityLinkKey(point))}">
+      <div class="itinerary-stop-head">
+        <h4>${pointNumber}. ${htmlEscape(point.title)}</h4>
+        <span class="point-type-badge ${point.locked ? "hard" : "soft"}">${typeIcon}${htmlEscape(lockLabel)}</span>
+      </div>
+      <div class="meta">${htmlEscape(typeName)}</div>
       <div class="meta">${formatDateTime(point.start)} ${point.end ? `-> ${formatDateTime(point.end)}` : ""}</div>
       <div class="meta">${htmlEscape(point.city || point.locationLabel)}</div>
       ${(!point.locked && !String(point.sourceKind || "").startsWith("route-node:")) ? `<div class="item-actions"><button type="button" data-action="remove-planned-stop" data-id="${point.id}">Remove interleaved stop</button></div>` : ""}
@@ -2212,13 +2349,19 @@ function renderTimelinePointBlock(point, pointNumber) {
 
 function renderTransitSegmentBlock(from, to) {
   const distance = haversineKm(from.lat, from.lng, to.lat, to.lng);
-  const estimateMinutes = Math.round((distance / 70) * 60);
+  const transportType = getSegmentTransportType(from, to);
+  const transport = getTransportMeta(transportType);
+  const avgSpeed = transportType === "walk" ? 4.8 : transportType === "drive" ? 62 : 85;
+  const estimateMinutes = Math.round((distance / avgSpeed) * 60);
   const segmentKey = buildSegmentKey(from.id, to.id);
   return `
-    <article class="itinerary-stop" data-segment-key="${htmlEscape(segmentKey)}">
-      <strong>Transit Segment</strong>
-      <div class="meta">${htmlEscape(from.title)} -> ${htmlEscape(to.title)}</div>
-      <div class="meta">Approx ${distance.toFixed(1)} km (${formatDurationMinutes(estimateMinutes)} by average road pace)</div>
+    <article class="itinerary-event itinerary-transit transit-${transport.css}" data-segment-key="${htmlEscape(segmentKey)}">
+      <span class="transit-icon-wrap">${iconSvg(transport.iconName, "transit-icon")}</span>
+      <div class="transit-copy">
+        <div class="transit-title">${htmlEscape(transport.label)}</div>
+        <div class="meta">${htmlEscape(from.title)} -> ${htmlEscape(to.title)}</div>
+        <div class="meta">${distance.toFixed(1)} km · ${formatDurationMinutes(estimateMinutes)}</div>
+      </div>
     </article>
   `;
 }
@@ -2240,6 +2383,14 @@ function handleItineraryAction(event) {
   const button = event.target.closest("button[data-action]");
   if (!button) return;
   const action = button.dataset.action;
+  if (action === "toggle-day") {
+    const dayKey = button.dataset.dayKey;
+    if (!dayKey) return;
+    itineraryCollapseState[dayKey] = !(itineraryCollapseState[dayKey] === true);
+    saveItineraryCollapseState(itineraryCollapseState);
+    renderItinerary();
+    return;
+  }
   if (action !== "remove-planned-stop") return;
   const itemId = button.dataset.id;
   const point = state.plannedStops.find((entry) => entry.id === itemId);
@@ -3718,12 +3869,39 @@ function renderRouteResults() {
 }
 
 function renderExperienceVisuals() {
+  renderVisualVibeTags();
   renderPhaseVisual();
   renderRouteStripVisual();
   renderActivityMixVisual();
   renderTripPulseVisual();
   renderPossibleVisuals();
   renderMapLegend();
+}
+
+function renderVisualVibeTags() {
+  const fromGeneral = Array.isArray(state.outlineDraft?.generalStrategy?.tags)
+    ? state.outlineDraft.generalStrategy.tags
+    : [];
+  const fromStrategy = (state.outlineDraft?.strategies || []).flatMap((strategy) => strategy.tags || []);
+  const fromProfile = state.profile?.interests || [];
+  const vibePriority = ["architecture", "art", "food", "nature", "events", "music", "market", "design", "hiking"];
+  const merged = [...fromGeneral, ...fromStrategy, ...fromProfile]
+    .map((tag) => normalizePreferenceTag(tag))
+    .filter(Boolean);
+  const seen = new Set();
+  const ordered = vibePriority.filter((tag) => merged.includes(tag));
+  merged.forEach((tag) => {
+    if (!seen.has(tag) && !ordered.includes(tag) && !["transit", "flight", "train", "drive", "walk"].includes(tag)) {
+      seen.add(tag);
+      ordered.push(tag);
+    }
+  });
+  const tags = ordered.slice(0, 8);
+  if (!tags.length) {
+    els.visualVibeTags.innerHTML = "<span class='chip'>Vibe tags appear after profile/strategy input.</span>";
+    return;
+  }
+  els.visualVibeTags.innerHTML = tags.map((tag) => `<span class="chip vibe-chip">${htmlEscape(tag)}</span>`).join("");
 }
 
 function renderPhaseVisual() {
@@ -4014,6 +4192,7 @@ function iconSvg(name, className = "icon-inline") {
     ticket: `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h16v3a2 2 0 0 0 0 2v3H4v-3a2 2 0 0 0 0-2V8z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 8v8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-dasharray="1.8 1.8"/></svg>`,
     briefcase: `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="7" width="16" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M9 7V5h6v2M4 12h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`,
     moon: `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 3a8.5 8.5 0 1 0 6 14.5A9 9 0 0 1 15 3z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>`,
+    lock: `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="11" width="12" height="9" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8.5 11V8.8A3.5 3.5 0 0 1 12 5.3a3.5 3.5 0 0 1 3.5 3.5V11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`,
     spark: `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.2 5.3L20 10l-5.8 1.7L12 17l-2.2-5.3L4 10l5.8-1.7L12 3z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>`,
   };
   return base[name] || base.pin;
@@ -4586,6 +4765,8 @@ function setDefaultEventDate() {
 function init() {
   bindElements();
   initializeMobileView();
+  initializeMobilePlanView();
+  initializeVisualBoardCollapsed();
   initMap();
   setupSidebarCollapsibles();
   bindEvents();

@@ -477,14 +477,31 @@
     </aside>
 
     <section class="workspace">
-      <section class="card visual-board-card">
-        <h2>Trip Visual Board</h2>
-        <div id="phaseVisual" class="phase-visual"></div>
-        <div id="routeStripVisual" class="route-strip"></div>
-        <div id="activityMixVisual" class="mix-board"></div>
-        <div id="tripPulseVisual" class="pulse-board"></div>
-        <div id="possibleVisuals" class="possible-board"></div>
+      <section id="visualBoardCard" class="card visual-board-card">
+        <div class="section-header">
+          <h2>Trip Visual Board</h2>
+          <button id="toggleVisualBoardBtn" type="button">Hide visuals</button>
+        </div>
+        <div id="visualBoardBody" class="visual-board-body">
+          <article class="visual-group">
+            <h3 class="subheader">Vibe</h3>
+            <div id="visualVibeTags" class="chip-list visual-vibe-tags"></div>
+            <div id="possibleVisuals" class="possible-board"></div>
+          </article>
+          <article class="visual-group">
+            <h3 class="subheader">Logistics</h3>
+            <div id="phaseVisual" class="phase-visual"></div>
+            <div id="routeStripVisual" class="route-strip"></div>
+            <div id="activityMixVisual" class="mix-board"></div>
+            <div id="tripPulseVisual" class="pulse-board"></div>
+          </article>
+        </div>
       </section>
+
+      <nav id="mobilePlanTabs" class="mobile-plan-tabs" aria-label="Mobile plan view switcher">
+        <button id="mobilePlanList" type="button" data-mobile-plan-view="list" class="is-active" aria-pressed="true">List</button>
+        <button id="mobilePlanMap" type="button" data-mobile-plan-view="map" aria-pressed="false">Map</button>
+      </nav>
 
       <section class="card map-card premium-panel">
         <h2>Trip Map</h2>
