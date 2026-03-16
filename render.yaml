@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: tripmind-demo
+    env: node
+    plan: free
+    buildCommand: npm install --prefix backend
+    startCommand: npm --prefix backend start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: TRIPMIND_DATA_DIR
+        value: /var/data/tripmind
+    disks:
+      - name: tripmind-data
+        mountPath: /var/data
+        sizeGB: 1

@@ -131,12 +131,40 @@ Then open:
 
 `http://localhost:8000`
 
+## Try a hosted demo
+
+Yes — the repo is now deployment-ready.
+
+### Fastest path: Render (with persistence disk)
+
+1. Push this branch to GitHub (already done).
+2. In Render, choose **New + Blueprint** and select this repo.
+3. Render will pick up `render.yaml` and create:
+   - a Node web service
+   - a persistent disk mounted at `/var/data`
+4. Open the generated URL (for example `https://tripmind-demo.onrender.com`).
+
+The app + API run together on one service, so cloud trip save works from the same URL.
+
+### Docker deploy (any container host)
+
+This repo also includes a root `Dockerfile`. Example:
+
+```bash
+docker build -t tripmind-demo .
+docker run -p 8787:8787 -e TRIPMIND_DATA_DIR=/app/backend/data tripmind-demo
+```
+
+Then open `http://localhost:8787`.
+
 ## Files
 
 - `index.html` - app layout and UI sections
 - `theme.css` - design tokens (palette, typography, spacing, motion, elevation, light/dark)
 - `styles.css` - styling and responsive layout
 - `THEMING_PLAN.md` - consistent styling blueprint and rollout checklist
+- `render.yaml` - Render blueprint for one-click hosted demo deployment
+- `Dockerfile` - containerized app+API deployment
 - `app.js` - app orchestration, state transitions, UI handlers, planner workflows
 - `backend/server.js` - Express API + static host for persisted user/trip state
 - `backend/data/trip-store.json` - generated on first save (gitignored)

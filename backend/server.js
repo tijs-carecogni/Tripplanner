@@ -5,7 +5,9 @@ const path = require("path");
 const app = express();
 const PORT = Number(process.env.PORT || 8787);
 const ROOT_DIR = path.resolve(__dirname, "..");
-const DATA_DIR = path.join(__dirname, "data");
+const DATA_DIR = process.env.TRIPMIND_DATA_DIR
+  ? path.resolve(process.env.TRIPMIND_DATA_DIR)
+  : path.join(__dirname, "data");
 const STORE_FILE = path.join(DATA_DIR, "trip-store.json");
 
 app.use(express.json({ limit: "8mb" }));
