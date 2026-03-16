@@ -190,6 +190,29 @@ main {
   margin-bottom: 0.6rem;
 }
 
+.phase-track {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-top: 0.55rem;
+}
+
+.phase-tag {
+  font-size: 0.72rem;
+  padding: 0.17rem 0.42rem;
+  border-radius: 999px;
+  border: 1px solid rgba(94, 144, 199, 0.42);
+  color: #3f638f;
+  background: rgba(233, 244, 255, 0.9);
+  font-weight: 700;
+}
+
+.phase-tag.active {
+  border-color: #2887cb;
+  color: #0f3d6a;
+  background: linear-gradient(180deg, #cbe9ff, #aed8f7);
+}
+
 .dev-card-btn {
   min-height: 62px;
   min-width: 130px;
@@ -301,6 +324,13 @@ button:disabled {
 
 .btn-neutral {
   background: linear-gradient(180deg, #5f7591, #4c617c);
+}
+
+.selected-action {
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.7) inset,
+    0 0 0 3px rgba(25, 139, 209, 0.34);
+  transform: translateY(-1px);
 }
 
 input[type="range"] {

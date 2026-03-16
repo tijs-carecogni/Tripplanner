@@ -305,6 +305,9 @@ class ColonistFullGame {
     this.scoreboard = document.querySelector("#scoreboard");
     this.statusText = document.querySelector("#statusText");
     this.hintText = document.querySelector("#hintText");
+    this.phaseRollTag = document.querySelector("#phaseRollTag");
+    this.phaseBuildTag = document.querySelector("#phaseBuildTag");
+    this.phaseEndTag = document.querySelector("#phaseEndTag");
     this.leftPlayerPanel = document.querySelector("#leftPlayerPanel");
     this.rightPlayerPanel = document.querySelector("#rightPlayerPanel");
 
@@ -328,6 +331,7 @@ class ColonistFullGame {
 
     this.maxLogEntries = 260;
     this.autoplayInterval = null;
+    this.aiTurnTimeout = null;
     this.resourceArtImages = {};
 
     this.populateResourceSelects();
@@ -361,7 +365,7 @@ class ColonistFullGame {
 
   bindControls() {
     this.nextTurnBtn.addEventListener("click", () => {
-      this.autoPlayCurrentTurn();
+      this.scheduleAiTurnsUntilHuman();
     });
     this.autoplayBtn.addEventListener("click", () => {
       if (this.autoplayInterval) this.stopAutoplay();
@@ -404,6 +408,7 @@ class ColonistFullGame {
   }
 
   resetGame() {
+    this.stopAiTurnLoop();
     this.geometry = createBoardGeometry(this.canvas.width, this.canvas.height);
     this.robberHexId = assignTiles(this.geometry);
     this.ports = assignPorts(this.geometry);
@@ -489,6 +494,7 @@ class ColonistFullGame {
     if (!player || !player.isHuman || this.winner) return;
     if (this.phase !== "main") return;
     this.endTurn();
+    this.scheduleAiTurnsUntilHuman();
   }
 
   setPendingAction(action) {
@@ -1343,6 +1349,7 @@ class ColonistFullGame {
 
   startAutoplay() {
     if (this.winner) return;
+    this.stopAiTurnLoop();
     const delay = Number(this.speedRange.value);
     this.autoplayInterval = window.setInterval(() => {
       this.autoPlayCurrentTurn();
@@ -1356,6 +1363,32 @@ class ColonistFullGame {
     window.clearInterval(this.autoplayInterval);
     this.autoplayInterval = null;
     this.autoplayBtn.textContent = "Start Autoplay";
+  }
+
+  stopAiTurnLoop() {
+    if (!this.aiTurnTimeout) return;
+    window.clearTimeout(this.aiTurnTimeout);
+    this.aiTurnTimeout = null;
+  }
+
+  scheduleAiTurnsUntilHuman() {
+    if (this.winner || this.autoplayInterval) return;
+    if (this.currentPlayer.isHuman) return;
+    if (this.aiTurnTimeout) return;
+
+    const cadence = Math.max(180, Math.min(1200, Math.round(Number(this.speedRange.value) * 0.55)));
+    const step = () => {
+      this.aiTurnTimeout = null;
+      if (this.winner || this.autoplayInterval || this.currentPlayer.isHuman) {
+        this.render();
+        return;
+      }
+      this.autoPlayCurrentTurn();
+      if (!this.winner && !this.autoplayInterval && !this.currentPlayer.isHuman) {
+        this.aiTurnTimeout = window.setTimeout(step, cadence);
+      }
+    };
+    this.aiTurnTimeout = window.setTimeout(step, 220);
   }
 
   drawBoardBackdrop() {
@@ -1875,10 +1908,12 @@ class ColonistFullGame {
       this.statusText.textContent = `Turn ${this.turn} · Active: ${active.name} · ${phaseText}${rollText}`;
       this.hintText.textContent =
         this.pendingAction != null
-          ? `Selected action: ${this.pendingAction}. Click the board to place.`
+          ? `Selected action: ${this.pendingAction}. Valid targets glow on board; click to place.`
           : active.isHuman
-            ? "Use build/dev/trade controls during your main phase."
-            : "AI turn. Use Auto Current Turn or Autoplay.";
+            ? this.phase === "pre_roll"
+              ? "Flow: Roll Dice -> Build / Trade / Play Card -> End Turn."
+              : "Build, trade, and play dev cards, then end your turn."
+            : "AI players are resolving turns until your next turn.";
     }
 
     const humanTurn = this.currentPlayer.isHuman && !this.winner;
@@ -1887,7 +1922,7 @@ class ColonistFullGame {
     const noDevPlayed = !this.currentTurnPlayedDevCard;
     const human = this.currentPlayer;
 
-    this.nextTurnBtn.disabled = !!this.winner;
+    this.nextTurnBtn.disabled = !!this.winner || humanTurn || this.autoplayInterval != null;
     this.rollDiceBtn.disabled = !(humanTurn && preRoll);
     this.endTurnBtn.disabled = !(humanTurn && mainPhase);
     this.buildRoadBtn.disabled = !(humanTurn && mainPhase);
@@ -1910,6 +1945,20 @@ class ColonistFullGame {
       human.devCards.yearOfPlenty > 0
     );
     this.playMonopolyBtn.disabled = !(humanTurn && mainPhase && noDevPlayed && human.devCards.monopoly > 0);
+
+    [this.phaseRollTag, this.phaseBuildTag, this.phaseEndTag]
+      .filter(Boolean)
+      .forEach((el) => el.classList.remove("active"));
+    if (this.phase === "pre_roll" && this.phaseRollTag) this.phaseRollTag.classList.add("active");
+    if (this.phase === "main") this.phaseBuildTag?.classList.add("active");
+    if (this.phase === "main" && humanTurn) this.phaseEndTag?.classList.add("active");
+
+    [this.buildRoadBtn, this.buildSettlementBtn, this.buildCityBtn].forEach((btn) =>
+      btn.classList.remove("selected-action"),
+    );
+    if (this.pendingAction === "road") this.buildRoadBtn.classList.add("selected-action");
+    if (this.pendingAction === "settlement") this.buildSettlementBtn.classList.add("selected-action");
+    if (this.pendingAction === "city") this.buildCityBtn.classList.add("selected-action");
   }
 
   render() {
