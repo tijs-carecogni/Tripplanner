@@ -157,6 +157,27 @@ docker run -p 8787:8787 -e TRIPMIND_DATA_DIR=/app/backend/data tripmind-demo
 
 Then open `http://localhost:8787`.
 
+### Azure (Container Apps)
+
+You can deploy directly to Azure with one script:
+
+```bash
+bash ./scripts/deploy_azure_containerapp.sh
+```
+
+Optional environment variables:
+
+```bash
+APP_NAME=tripmind-demo \
+RESOURCE_GROUP=tripmind-demo-rg \
+LOCATION=westeurope \
+ENV_NAME=tripmind-demo-env \
+bash ./scripts/deploy_azure_containerapp.sh
+```
+
+This creates/updates an Azure Container App from this repo and prints a public HTTPS URL.
+For production-grade durable server-side saves, mount Azure Files and set `TRIPMIND_DATA_DIR`.
+
 ## Files
 
 - `index.html` - app layout and UI sections
@@ -174,6 +195,7 @@ Then open `http://localhost:8787`.
 - `src/interaction.js` - shared interaction primitives (entity-link keys + cross-component highlight controller)
 - `scripts/capture_demo_screenshots.sh` - regenerates demo-filled hero screenshots for UI iteration
 - `scripts/capture_mobile_screenshots.sh` - captures mobile-first screenshot set for visual QA
+- `scripts/deploy_azure_containerapp.sh` - one-command Azure Container Apps deploy for a live demo URL
 - `screenshots/bootstrap-demo.html` - localStorage bootstrap page used by screenshot workflow
 
 ## Notes
