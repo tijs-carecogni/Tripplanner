@@ -45,10 +45,14 @@
   --color-text-tertiary: #6b7280;
   --color-text-on-brand: #f7fbff;
 
-  --color-brand-400: #39679e;
-  --color-brand-500: #1f4d8c;
-  --color-brand-600: #193f73;
-  --color-brand-700: #14355f;
+  --color-brand-400: #9d6ce1;
+  --color-brand-500: #7a44c2;
+  --color-brand-600: #6634a8;
+  --color-brand-700: #52278a;
+
+  --color-shell-bg: #32243f;
+  --color-shell-elevated: #46315a;
+  --color-shell-border: rgba(255, 255, 255, 0.14);
 
   --color-border-soft: rgba(148, 163, 184, 0.28);
   --color-border-default: #dbe2ea;
@@ -93,7 +97,7 @@
   --ink-soft: var(--color-text-secondary);
   --brand-1: var(--color-brand-500);
   --brand-2: var(--color-brand-400);
-  --brand-3: #8ea2bc;
+  --brand-3: #bca4df;
   --card-bg: var(--color-surface-primary);
   --card-border: var(--color-border-soft);
   --surface-shadow: var(--shadow-3);
@@ -111,10 +115,14 @@
   --color-text-tertiary: #92acd8;
   --color-text-on-brand: #f7fbff;
 
-  --color-brand-400: #70a7ff;
-  --color-brand-500: #3e84f2;
-  --color-brand-600: #2f73dc;
-  --color-brand-700: #255cb0;
+  --color-brand-400: #b897ef;
+  --color-brand-500: #9a6fe0;
+  --color-brand-600: #8157c8;
+  --color-brand-700: #6841aa;
+
+  --color-shell-bg: #1f1828;
+  --color-shell-elevated: #2d2139;
+  --color-shell-border: rgba(255, 255, 255, 0.2);
 
   --color-border-soft: rgba(101, 131, 182, 0.42);
   --color-border-default: #365179;
