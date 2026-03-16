@@ -44,7 +44,7 @@ fi
 
 ffmpeg -y -i "$OUT_DIR/10-demo-full.png" -vf "crop=1340:760:430:90" "$OUT_DIR/11-hero-visual-board.png" >/dev/null 2>&1
 ffmpeg -y -i "$OUT_DIR/10-demo-full.png" -vf "crop=1340:650:430:760" "$OUT_DIR/12-hero-map-panel.png" >/dev/null 2>&1
-ffmpeg -y -i "$OUT_DIR/10-demo-full.png" -vf "crop=1340:1160:430:1420" "$OUT_DIR/13-hero-itinerary.png" >/dev/null 2>&1
-ffmpeg -y -i "$OUT_DIR/10-demo-full.png" -vf "crop=410:2160:0:80" "$OUT_DIR/14-hero-controls-chat.png" >/dev/null 2>&1
+ffmpeg -y -i "$OUT_DIR/10-demo-full.png" -vf "crop=780:1160:430:1420" "$OUT_DIR/13-hero-itinerary.png" >/dev/null 2>&1
+ffmpeg -y -i "$OUT_DIR/10-demo-full.png" -vf "crop=500:1780:0:80" "$OUT_DIR/14-hero-controls-chat.png" >/dev/null 2>&1
 
 echo "Updated screenshots in $OUT_DIR"

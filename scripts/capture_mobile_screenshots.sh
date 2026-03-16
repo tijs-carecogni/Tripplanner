@@ -4,14 +4,20 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUT_DIR="$ROOT_DIR/screenshots"
 BOOTSTRAP_URL="http://127.0.0.1:8124/screenshots/bootstrap-demo.html"
+BOOTSTRAP_LIST_URL="${BOOTSTRAP_URL}?mobilePlan=list"
+BOOTSTRAP_MAP_URL="${BOOTSTRAP_URL}?mobilePlan=map"
 TMP_PROFILE="$(mktemp -d /tmp/tripmind-mobile-shot-XXXXXX)"
+TMP_PROFILE_MAP="$(mktemp -d /tmp/tripmind-mobile-map-shot-XXXXXX)"
 SERVER_PID=""
+MAP_TMP_PNG="$OUT_DIR/.20-mobile-map-full.png"
+FULL_RAW_TMP_PNG="$OUT_DIR/.20-mobile-full-raw.png"
 
 cleanup() {
   if [[ -n "${SERVER_PID}" ]]; then
     kill "${SERVER_PID}" >/dev/null 2>&1 || true
   fi
   rm -rf "${TMP_PROFILE}"
+  rm -rf "${TMP_PROFILE_MAP}"
 }
 trap cleanup EXIT
 
@@ -34,15 +40,36 @@ timeout 45s google-chrome \
   --window-size=430,3200 \
   --virtual-time-budget=18000 \
   --user-data-dir="$TMP_PROFILE" \
-  --screenshot="$OUT_DIR/20-mobile-full.png" \
-  "$BOOTSTRAP_URL" || CHROME_EXIT=$?
+  --screenshot="$FULL_RAW_TMP_PNG" \
+  "$BOOTSTRAP_LIST_URL" || CHROME_EXIT=$?
 
-if [[ ! -f "$OUT_DIR/20-mobile-full.png" ]]; then
+if [[ ! -f "$FULL_RAW_TMP_PNG" ]]; then
   echo "Failed to create mobile screenshot (chrome exit $CHROME_EXIT)" >&2
   exit 1
 fi
 
+CHROME_EXIT=0
+timeout 45s google-chrome \
+  --headless=new \
+  --disable-gpu \
+  --no-sandbox \
+  --hide-scrollbars \
+  --remote-debugging-port=0 \
+  --window-size=430,3200 \
+  --virtual-time-budget=18000 \
+  --user-data-dir="$TMP_PROFILE_MAP" \
+  --screenshot="$MAP_TMP_PNG" \
+  "$BOOTSTRAP_MAP_URL" || CHROME_EXIT=$?
+
+if [[ ! -f "$MAP_TMP_PNG" ]]; then
+  echo "Failed to create mobile map screenshot (chrome exit $CHROME_EXIT)" >&2
+  exit 1
+fi
+
+ffmpeg -y -i "$FULL_RAW_TMP_PNG" -vf "crop=430:ih:0:0" "$OUT_DIR/20-mobile-full.png" >/dev/null 2>&1
 ffmpeg -y -i "$OUT_DIR/20-mobile-full.png" -vf "crop=430:760:0:80" "$OUT_DIR/21-mobile-visual-board.png" >/dev/null 2>&1
-ffmpeg -y -i "$OUT_DIR/20-mobile-full.png" -vf "crop=430:820:0:860" "$OUT_DIR/22-mobile-map-itinerary.png" >/dev/null 2>&1
+ffmpeg -y -i "$MAP_TMP_PNG" -vf "crop=430:860:0:860" "$OUT_DIR/22-mobile-map-itinerary.png" >/dev/null 2>&1
+rm -f "$MAP_TMP_PNG"
+rm -f "$FULL_RAW_TMP_PNG"
 
 echo "Updated mobile screenshots in $OUT_DIR"

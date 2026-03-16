@@ -32,7 +32,7 @@
 
   <main class="layout">
     <aside class="sidebar">
-      <section class="card">
+      <section class="card sync-card">
         <h2>Cloud Trip Save</h2>
         <p class="hint">Persist user + trip state between sessions with backend storage.</p>
         <form id="syncForm" class="stack">
@@ -48,7 +48,7 @@
             <input id="syncAutoSync" type="checkbox" checked>
             Auto-sync every change
           </label>
-          <div class="item-actions">
+          <div class="item-actions sync-actions">
             <button type="submit">Save sync settings</button>
             <button id="syncLoadBtn" type="button">Load from cloud</button>
           </div>

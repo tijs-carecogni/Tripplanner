@@ -160,7 +160,15 @@
       },
     };
 
+    const params = new URLSearchParams(location.search);
+    const mobilePlan = params.get("mobilePlan");
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    localStorage.setItem("mindtrip_mobile_view_v1", "plan");
+    if (mobilePlan === "map" || mobilePlan === "list") {
+      localStorage.setItem("mindtrip_mobile_plan_view_v1", mobilePlan);
+    } else {
+      localStorage.setItem("mindtrip_mobile_plan_view_v1", "list");
+    }
     location.replace("/index.html");
   </script>
 </body>
