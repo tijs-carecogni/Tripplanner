@@ -9,7 +9,8 @@ After enabling Pages for the repository, the game is published at:
 - https://tijs-carecogni.github.io/Tripplanner/
 
 If this is the first deployment, open repository **Settings -> Pages** and set the source to
-**GitHub Actions**. The workflow file is:
+**GitHub Actions**. (GitHub Actions tokens usually cannot enable Pages automatically on first run.)
+The workflow file is:
 
 - `.github/workflows/deploy-pages.yml`
 
