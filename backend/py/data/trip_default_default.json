@@ -1,0 +1,70 @@
+{
+  "trip_id": "default",
+  "user_id": "default",
+  "graph_node": "scaffold",
+  "profile": {
+    "name": "",
+    "home_base": "",
+    "budget": "mid",
+    "pace": "balanced",
+    "interests": []
+  },
+  "trip_context": {
+    "primary_destination": "",
+    "start_date": "",
+    "end_date": "",
+    "must_include": [],
+    "avoid": [],
+    "style_notes": "",
+    "liked_examples": [
+      "togakushi hike",
+      "alpine route",
+      "naoshima",
+      "ishikagi"
+    ]
+  },
+  "hard_points": [],
+  "soft_pois": [],
+  "planned_stops": [],
+  "route_sets": [],
+  "conversation": [
+    {
+      "id": "msg-5a5b700b",
+      "role": "user",
+      "text": "We are going to japan 9 april to may 1st. We stay untill 14th in Tokyo with 11th and 12 th a day trip. Doing togakushi hike after and 16th alpine route, 19th naoshima. 23 fly to ishikagi, 26 back to tokyo. We leave may 1st. From 9th to 14th we sleep in nakano city",
+      "when": "2026-03-19T20:21:52.357577+00:00",
+      "options": []
+    },
+    {
+      "id": "msg-0237c68a",
+      "role": "user",
+      "text": "We are going to japan 9 april to may 1st. We stay untill 14th in Tokyo with 11th and 12 th a day trip. Doing togakushi hike after and 16th alpine route, 19th naoshima. 23 fly to ishikagi, 26 back to tokyo. We leave may 1st. From 9th to 14th we sleep in nakano city",
+      "when": "",
+      "options": []
+    },
+    {
+      "id": "msg-2c486761",
+      "role": "assistant",
+      "text": "I'd love to help plan your trip! To get started, could you tell me:\n- Where are you going?\n- What dates?\n- Any flights or hotels already booked?",
+      "when": "2026-03-19T20:22:55.320856+00:00",
+      "options": []
+    }
+  ],
+  "outline_draft": {
+    "blocks": [],
+    "strategies": [],
+    "general_strategy": ""
+  },
+  "expert_settings": {
+    "planner_mode": "expert-balanced",
+    "suggestion_count": 12,
+    "daily_stop_target": 3,
+    "hard_point_buffer_hours": 1.5,
+    "event_intensity": 3,
+    "transport_bias": "balanced",
+    "group_by_day": true,
+    "map_auto_fit": true,
+    "map_focus_mode": "trip-core",
+    "adventurousness": 3
+  }
+}

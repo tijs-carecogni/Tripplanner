@@ -1,0 +1,73 @@
+{
+  "user_id": "default",
+  "learned_likes": {
+    "architecture": 2.0,
+    "food": 1.0,
+    "and": 1.0,
+    "hiking": 6.0,
+    "nature": 2.0,
+    "scenic": 2.0,
+    "day-hike": 2.0,
+    "mountains": 3.0,
+    "multi-day": 2.0,
+    "temples": 2.0,
+    "historic": 2.0,
+    "onsen": 2.0,
+    "art": 1.0,
+    "museums": 1.0,
+    "mountain-biking": 1.0,
+    "adventure": 1.0,
+    "trekking": 1.0,
+    "contemporary-art": 1.0,
+    "private-collections": 1.0,
+    "flea-markets": 1.0,
+    "local-markets": 1.0,
+    "jazz": 1.0,
+    "live-music": 1.0,
+    "cafes": 1.0,
+    "local-atmosphere": 1.0,
+    "modern art": 1.0,
+    "island travel": 1.0
+  },
+  "learned_dislikes": {},
+  "tag_scores": {},
+  "city_scores": {},
+  "ratings_history": [
+    {
+      "item_id": "pref-d9ec6861",
+      "feedback": "love",
+      "tags": [
+        "hiking",
+        "nature",
+        "scenic",
+        "day-hike",
+        "mountains"
+      ],
+      "title": "Kamikochi valley day hikes"
+    },
+    {
+      "item_id": "pref-5f82b9e3",
+      "feedback": "love",
+      "tags": [
+        "multi-day",
+        "hiking",
+        "temples",
+        "historic",
+        "onsen"
+      ],
+      "title": "Kumano Kodo pilgrimage (multi-day)"
+    }
+  ],
+  "past_trip_examples": [
+    "museum insel hombroich",
+    "mtb downhill from volcanoe in Arequipa",
+    "hiking colca canyon",
+    "boros collection in berlin",
+    "flymarket friederichshain",
+    "cool jazz cafe in chiang mai",
+    "togakushi hike",
+    "alpine route",
+    "naoshima",
+    "ishikagi"
+  ]
+}

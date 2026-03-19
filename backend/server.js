@@ -46,7 +46,7 @@ function getTripRecord(store, userId, tripId) {
 }
 
 app.get("/api/health", (_req, res) => {
-  res.json({ ok: true, service: "tripmind-backend" });
+  res.json({ ok: true, service: "driftplan-backend" });
 });
 
 app.get("/api/state", async (req, res) => {
@@ -115,5 +115,5 @@ app.use(express.static(ROOT_DIR));
 
 app.listen(PORT, () => {
   // eslint-disable-next-line no-console
-  console.log(`TripMind backend listening on http://localhost:${PORT}`);
+  console.log(`Driftplan backend listening on http://localhost:${PORT}`);
 });

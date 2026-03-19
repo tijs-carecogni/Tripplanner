@@ -1,13 +1,13 @@
 :root {
-  /* Typography */
+  /* Typography — clean geometric */
   --font-family-base: Inter, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --font-size-xs: 0.72rem;
-  --font-size-sm: 0.8rem;
+  --font-size-sm: 0.82rem;
   --font-size-md: 0.9rem;
   --font-size-lg: 1.08rem;
   --font-size-xl: 1.38rem;
   --line-height-tight: 1.2;
-  --line-height-normal: 1.45;
+  --line-height-normal: 1.5;
   --font-weight-regular: 400;
   --font-weight-medium: 500;
   --font-weight-semibold: 600;
@@ -23,112 +23,113 @@
 
   /* Radius */
   --radius-sm: 8px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
   --radius-pill: 999px;
 
   /* Motion */
   --duration-fast: 120ms;
   --duration-base: 160ms;
-  --duration-slow: 220ms;
+  --duration-slow: 260ms;
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
 
-  /* Light palette */
-  --color-bg-canvas-start: #f5f6f8;
-  --color-bg-canvas-end: #f1f3f6;
-  --color-surface-primary: rgba(255, 255, 255, 0.96);
-  --color-surface-secondary: rgba(250, 251, 252, 0.95);
-  --color-surface-elevated: rgba(255, 255, 255, 0.97);
+  /* ── Claude-inspired warm palette ── */
+  --color-bg-canvas-start: #f8f6f2;
+  --color-bg-canvas-end: #f5f2ed;
+  --color-surface-primary: #ffffff;
+  --color-surface-secondary: #faf8f5;
+  --color-surface-elevated: #ffffff;
 
-  --color-text-primary: #0f172a;
-  --color-text-secondary: #475569;
-  --color-text-tertiary: #6b7280;
-  --color-text-on-brand: #f7fbff;
+  --color-text-primary: #1a1a1a;
+  --color-text-secondary: #5c5c5c;
+  --color-text-tertiary: #8c8c8c;
+  --color-text-on-brand: #ffffff;
 
-  --color-brand-400: #9d6ce1;
-  --color-brand-500: #7a44c2;
-  --color-brand-600: #6634a8;
-  --color-brand-700: #52278a;
+  /* Brand: warm terracotta — used sparingly */
+  --color-brand-400: #e8926e;
+  --color-brand-500: #d4714a;
+  --color-brand-600: #bc5c38;
+  --color-brand-700: #a04a2c;
 
   --color-shell-bg: #ffffff;
-  --color-shell-elevated: #f1f5f9;
+  --color-shell-elevated: #f5f2ee;
   --color-shell-border: rgba(0, 0, 0, 0.06);
 
-  --color-border-soft: rgba(148, 163, 184, 0.28);
-  --color-border-default: #dbe2ea;
-  --color-border-strong: #cfd8e3;
+  --color-border-soft: rgba(0, 0, 0, 0.06);
+  --color-border-default: rgba(0, 0, 0, 0.1);
+  --color-border-strong: rgba(0, 0, 0, 0.15);
 
-  --color-success-bg: #ecfaf1;
-  --color-success-border: #8fd5a8;
-  --color-success-text: #1d6a38;
+  --color-success-bg: #f0f9f2;
+  --color-success-border: #b5dfc2;
+  --color-success-text: #2d7a46;
 
-  --color-warning-bg: #fff5e9;
-  --color-warning-border: #f2c98e;
+  --color-warning-bg: #fdf6ee;
+  --color-warning-border: #e8c990;
   --color-warning-text: #8c5a16;
 
-  --color-danger-bg: #fff0f0;
-  --color-danger-border: #f2b5b5;
+  --color-danger-bg: #fdf0f0;
+  --color-danger-border: #e8b5b5;
   --color-danger-text: #922;
 
   /* Transport semantic colors */
-  --color-transport-flight-bg: #fff2f8;
-  --color-transport-flight-border: #f2a7c7;
-  --color-transport-flight-text: #9d2b63;
-  --color-transport-train-bg: #eff2ff;
-  --color-transport-train-border: #aab6f7;
-  --color-transport-train-text: #2f3fa8;
-  --color-transport-drive-bg: #edfcf0;
-  --color-transport-drive-border: #9ee4ad;
-  --color-transport-drive-text: #1f7a3d;
-  --color-transport-walk-bg: #f6efff;
-  --color-transport-walk-border: #ccb0f7;
-  --color-transport-walk-text: #6330a2;
+  --color-transport-flight-bg: #fdf2f6;
+  --color-transport-flight-border: #e8a5c2;
+  --color-transport-flight-text: #8c2d58;
+  --color-transport-train-bg: #f0f2fc;
+  --color-transport-train-border: #a8b5e8;
+  --color-transport-train-text: #3040a0;
+  --color-transport-drive-bg: #f0faf2;
+  --color-transport-drive-border: #a0deb0;
+  --color-transport-drive-text: #287040;
+  --color-transport-walk-bg: #faf4ee;
+  --color-transport-walk-border: #d4b89c;
+  --color-transport-walk-text: #7c5438;
 
-  /* Elevation */
-  --shadow-1: 0 4px 10px rgba(15, 23, 42, 0.1);
-  --shadow-2: 0 8px 18px rgba(15, 23, 42, 0.12);
-  --shadow-3: 0 10px 24px rgba(15, 23, 42, 0.12);
-  --focus-ring: 0 0 0 3px rgba(148, 163, 184, 0.28);
+  /* Elevation — soft, warm shadows */
+  --shadow-1: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
+  --shadow-2: 0 4px 12px rgba(0, 0, 0, 0.06);
+  --shadow-3: 0 8px 24px rgba(0, 0, 0, 0.08);
+  --focus-ring: 0 0 0 3px rgba(212, 113, 74, 0.15);
 
-  /* Legacy aliases used in styles.css */
+  /* Legacy aliases */
   --bg-1: var(--color-bg-canvas-start);
   --bg-2: var(--color-bg-canvas-end);
   --ink-strong: var(--color-text-primary);
   --ink-soft: var(--color-text-secondary);
   --brand-1: var(--color-brand-500);
   --brand-2: var(--color-brand-400);
-  --brand-3: #bca4df;
+  --brand-3: #e8b8a0;
   --card-bg: var(--color-surface-primary);
   --card-border: var(--color-border-soft);
   --surface-shadow: var(--shadow-3);
 }
 
 [data-theme="dark"] {
-  --color-bg-canvas-start: #0d1728;
-  --color-bg-canvas-end: #14243f;
-  --color-surface-primary: rgba(18, 33, 57, 0.9);
-  --color-surface-secondary: rgba(15, 28, 48, 0.88);
-  --color-surface-elevated: rgba(25, 42, 70, 0.95);
+  --color-bg-canvas-start: #1a1612;
+  --color-bg-canvas-end: #1e1a16;
+  --color-surface-primary: rgba(30, 26, 22, 0.95);
+  --color-surface-secondary: rgba(36, 32, 28, 0.9);
+  --color-surface-elevated: rgba(42, 38, 34, 0.95);
 
-  --color-text-primary: #e5efff;
-  --color-text-secondary: #afc5ea;
-  --color-text-tertiary: #92acd8;
-  --color-text-on-brand: #f7fbff;
+  --color-text-primary: #e8e0d8;
+  --color-text-secondary: #b0a898;
+  --color-text-tertiary: #887c70;
+  --color-text-on-brand: #ffffff;
 
-  --color-brand-400: #b897ef;
-  --color-brand-500: #9a6fe0;
-  --color-brand-600: #8157c8;
-  --color-brand-700: #6841aa;
+  --color-brand-400: #e8a08a;
+  --color-brand-500: #d47a58;
+  --color-brand-600: #c06840;
+  --color-brand-700: #a85530;
 
-  --color-shell-bg: #0f172a;
-  --color-shell-elevated: #1e293b;
-  --color-shell-border: rgba(255, 255, 255, 0.12);
+  --color-shell-bg: #1e1a16;
+  --color-shell-elevated: #2a2620;
+  --color-shell-border: rgba(255, 255, 255, 0.08);
 
-  --color-border-soft: rgba(101, 131, 182, 0.42);
-  --color-border-default: #365179;
-  --color-border-strong: #496694;
+  --color-border-soft: rgba(255, 255, 255, 0.06);
+  --color-border-default: rgba(255, 255, 255, 0.1);
+  --color-border-strong: rgba(255, 255, 255, 0.16);
 
-  --shadow-1: 0 6px 18px rgba(0, 0, 0, 0.35);
-  --shadow-2: 0 12px 26px rgba(0, 0, 0, 0.38);
-  --shadow-3: 0 18px 40px rgba(0, 0, 0, 0.45);
+  --shadow-1: 0 2px 6px rgba(0, 0, 0, 0.3);
+  --shadow-2: 0 6px 16px rgba(0, 0, 0, 0.35);
+  --shadow-3: 0 12px 32px rgba(0, 0, 0, 0.4);
 }

@@ -3,606 +3,207 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MindTrip Planner</title>
+  <title>Driftplan</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><circle cx='12' cy='12' r='9.2' fill='none' stroke='%23e85d3a' stroke-width='1.6'/><polygon points='12,4.5 14,11 12,10 10,11' fill='%23e85d3a' opacity='0.9'/><polygon points='12,19.5 10,13 12,14 14,13' fill='%23e85d3a' opacity='0.45'/></svg>">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
   <link rel="stylesheet" href="./theme.css">
   <link rel="stylesheet" href="./styles.css">
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
 </head>
 <body>
+  <!-- ===== TOPBAR ===== -->
   <header class="topbar">
     <div class="brand-lockup">
       <span class="brand-logo" aria-hidden="true">
         <svg viewBox="0 0 24 24" role="presentation" focusable="false">
-          <path d="M12 2.8l7.4 3v5.6c0 4.8-3 8.4-7.4 9.8-4.4-1.4-7.4-5-7.4-9.8V5.8l7.4-3z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
-          <path d="M8.4 12l2.3 2.3L15.7 9.3" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="12" cy="12" r="9.2" fill="none" stroke="currentColor" stroke-width="1.6"/>
+          <polygon points="12,4.5 14,11 12,10 10,11" fill="currentColor" opacity="0.9"/>
+          <polygon points="12,19.5 10,13 12,14 14,13" fill="currentColor" opacity="0.45"/>
+          <path d="M3.5 14.5c3-2.5 6.5 1.5 10 0s5-2 7.5-0.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" opacity="0.55"/>
         </svg>
       </span>
-      <div>
-        <h1>TripMind</h1>
-        <p class="topbar-subtitle">Dream it, chat it, plan it, go.</p>
-      </div>
+      <h1>Driftplan</h1>
     </div>
-    <div class="status" id="statusMessage" aria-live="polite">Ready to plan!</div>
+    <div id="tripMetaBar" class="trip-meta-bar">
+      <span id="metaDestination" class="meta-chip">No destination</span>
+      <span id="metaDates" class="meta-chip">No dates</span>
+      <span id="metaAnchors" class="meta-chip">0 anchors</span>
+      <span id="metaNode" class="meta-chip meta-node">Ready</span>
+    </div>
+    <div class="topbar-actions">
+      <button id="settingsBtn" type="button" class="btn-ghost topbar-icon-btn" aria-label="Settings">
+        <i data-lucide="sliders-horizontal"></i>
+      </button>
+    </div>
   </header>
 
-  <nav id="mobileViewTabs" class="mobile-view-tabs" aria-label="Mobile section switcher">
-    <button id="mobileTabPlan" type="button" data-mobile-view="plan" class="is-active" aria-pressed="true">Plan</button>
-    <button id="mobileTabControls" type="button" data-mobile-view="controls" aria-pressed="false">Controls</button>
+  <!-- ===== MOBILE TABS (hidden on desktop) ===== -->
+  <nav id="mobileTabs" class="mobile-tabs">
+    <button type="button" class="mobile-tab is-active" data-panel="chat">Chat</button>
+    <button type="button" class="mobile-tab" data-panel="plan">Plan</button>
   </nav>
 
-  <nav id="topLevelTabs" class="top-level-tabs" aria-label="Primary app navigation">
-    <button id="topTabStart" type="button" data-top-tab="start" class="is-active" aria-pressed="true"><i data-lucide="message-circle"></i> Chat</button>
-    <button id="topTabPlan" type="button" data-top-tab="plan" aria-pressed="false"><i data-lucide="map"></i> Plan</button>
-    <button id="topTabExplore" type="button" data-top-tab="explore" aria-pressed="false"><i data-lucide="compass"></i> Discover</button>
-    <button id="topTabSettings" type="button" data-top-tab="settings" aria-pressed="false"><i data-lucide="sliders-horizontal"></i> Settings</button>
-  </nav>
+  <!-- ===== MAIN 3-PANEL LAYOUT: Itinerary | Chat | Map ===== -->
+  <main class="layout-3col">
 
-  <main class="layout">
-    <aside class="sidebar">
-      <section class="card sync-card" data-tab-panel="settings">
-        <h2>Cloud Trip Save</h2>
-        <p class="hint">Persist user + trip state between sessions with backend storage.</p>
-        <form id="syncForm" class="stack">
-          <label>
-            User ID
-            <input id="syncUserId" type="text" placeholder="alex">
-          </label>
-          <label>
-            Trip ID
-            <input id="syncTripId" type="text" placeholder="japan-apr-2026">
-          </label>
-          <label class="checkbox-inline">
-            <input id="syncAutoSync" type="checkbox" checked>
-            Auto-sync every change
-          </label>
-          <div class="item-actions sync-actions">
-            <button type="submit">Save sync settings</button>
-            <button id="syncLoadBtn" type="button">Load from cloud</button>
-          </div>
-        </form>
-        <div id="syncStatus" class="memory-summary">Cloud sync idle.</div>
-      </section>
-
-      <section class="card" data-tab-panel="settings">
-        <h2>Traveler Memory</h2>
-        <form id="profileForm" class="stack">
-          <label>
-            Name
-            <input id="profileName" name="profileName" type="text" placeholder="Alex Traveler">
-          </label>
-          <label>
-            Home Base
-            <input id="homeBase" name="homeBase" type="text" placeholder="Berlin">
-          </label>
-          <label>
-            Budget Style
-            <select id="budgetStyle" name="budgetStyle">
-              <option value="budget">Budget</option>
-              <option value="mid" selected>Mid-range</option>
-              <option value="premium">Premium</option>
-            </select>
-          </label>
-          <label>
-            Pace
-            <select id="travelPace" name="travelPace">
-              <option value="slow">Slow</option>
-              <option value="balanced" selected>Balanced</option>
-              <option value="fast">Fast</option>
-            </select>
-          </label>
-          <label>
-            Interests (comma separated)
-            <input id="interests" name="interests" type="text" placeholder="food, culture, art">
-          </label>
-          <button type="submit">Save profile memory</button>
-        </form>
-        <div id="memorySummary" class="memory-summary"></div>
-      </section>
-
-      <section class="card" data-tab-panel="settings">
-        <h2>Trip Context (Step 1)</h2>
-        <p class="hint">Advanced manual override for trip context. In normal flow, context is captured through chat.</p>
-        <form id="tripContextForm" class="stack">
-          <label>
-            Trip start
-            <input id="tripStartDate" type="date">
-          </label>
-          <label>
-            Trip end
-            <input id="tripEndDate" type="date">
-          </label>
-          <label>
-            Primary destination / area
-            <input id="tripPrimaryDestination" type="text" placeholder="Country + key regions/cities">
-          </label>
-          <label>
-            Must include (comma separated)
-            <input id="tripMustInclude" type="text" placeholder="onsen, sushi class, architecture walk">
-          </label>
-          <label>
-            Avoid (comma separated)
-            <input id="tripAvoid" type="text" placeholder="nightclubs, long hikes">
-          </label>
-          <label>
-            Extra style notes
-            <textarea id="tripStyleNotes" rows="2" placeholder="Prefer 2 big experiences per day and a relaxed evening"></textarea>
-          </label>
-          <label>
-            Examples of trips/activities you loved before
-            <textarea id="tripLikedExamples" rows="3" placeholder="mtb downhill near a volcano in Arequipa, Insel Hombroich, hiking near Karakol, Boros collection"></textarea>
-          </label>
-          <button type="submit">Save trip context</button>
-        </form>
-
-        <form id="llmItineraryForm" class="stack">
-          <label>
-            Ask LLM to fill itinerary
-            <textarea id="itineraryGenerationRequest" rows="2" placeholder="Fill mornings with culture and afternoons with food, keeping evenings flexible." required></textarea>
-          </label>
-          <label>
-            Max items to generate
-            <input id="itineraryGenerationLimit" type="number" min="1" max="30" value="10">
-          </label>
-          <label class="checkbox-inline">
-            <input id="itineraryReplaceGenerated" type="checkbox" checked>
-            Replace previously LLM-generated itinerary parts
-          </label>
-          <button type="submit">Generate first draft around hard points</button>
-        </form>
-        <div id="tripContextSummary" class="memory-summary"></div>
-      </section>
-
-      <section class="card" data-tab-panel="settings">
-        <h2>Expert TripMind Settings</h2>
-        <p class="hint">Tune how the planner fills gaps, scores options, and visualizes your trip.</p>
-        <form id="expertSettingsForm" class="stack">
-          <label>
-            Planner mode
-            <select id="expertPlannerMode">
-              <option value="expert-balanced">Expert balanced</option>
-              <option value="exploration-heavy">Exploration heavy</option>
-              <option value="efficiency-heavy">Efficiency heavy</option>
-            </select>
-          </label>
-          <label>
-            Suggestion breadth
-            <input id="expertSuggestionCount" type="number" min="4" max="30" value="12">
-          </label>
-          <label>
-            Daily stop target
-            <input id="expertDailyStopTarget" type="number" min="1" max="8" value="3">
-          </label>
-          <label>
-            Hard-point buffer hours
-            <input id="expertHardPointBufferHours" type="number" min="0" max="12" step="0.5" value="1.5">
-          </label>
-          <label>
-            Event intensity (0-5)
-            <input id="expertEventIntensity" type="range" min="0" max="5" step="1" value="3">
-          </label>
-          <label>
-            Transport bias
-            <select id="expertTransportBias">
-              <option value="balanced">Balanced</option>
-              <option value="ground-first">Ground-first</option>
-              <option value="flight-first">Flight-first</option>
-            </select>
-          </label>
-          <label class="checkbox-inline">
-            <input id="expertGroupByDay" type="checkbox" checked>
-            Group itinerary by day
-          </label>
-          <label class="checkbox-inline">
-            <input id="expertMapAutoFit" type="checkbox" checked>
-            Auto-fit map after updates
-          </label>
-          <label>
-            Map focus mode
-            <select id="expertMapFocusMode">
-              <option value="trip-core">Trip core (focused)</option>
-              <option value="all">All visible layers</option>
-            </select>
-          </label>
-          <label class="checkbox-inline">
-            <input id="expertShowRecommendations" type="checkbox" checked>
-            Show recommendation layer on map
-          </label>
-          <label class="checkbox-inline">
-            <input id="expertPersistentSelection" type="checkbox" checked>
-            Enable click-to-pin linked highlights
-          </label>
-          <button type="submit">Save expert settings</button>
-        </form>
-        <div id="expertSettingsSummary" class="memory-summary"></div>
-      </section>
-
-      <section class="card chat-card" data-tab-panel="start">
-        <h2><i data-lucide="plane" class="heading-icon"></i> Where to next?</h2>
-        <p class="hint">Just tell me about your dream trip. I'll figure out the rest.</p>
-        <p class="quick-prompts-label">Try asking about...</p>
-        <div id="quickPrompts" class="chip-list quick-prompts">
-          <button type="button" class="chip quick-prompt" data-prompt="Planning a trip to Japan in April, 2 weeks, interested in architecture and food">Japan adventure</button>
-          <button type="button" class="chip quick-prompt" data-prompt="I want a relaxed beach holiday in Southeast Asia for 10 days">Beach getaway</button>
-          <button type="button" class="chip quick-prompt" data-prompt="Weekend city break in Europe focused on art and nightlife">Euro city break</button>
-          <button type="button" class="chip quick-prompt" data-prompt="Road trip through the American Southwest, 2 weeks, hiking and stargazing">Southwest road trip</button>
-        </div>
-        <form id="conversationForm" class="chat-input-group">
-          <textarea id="conversationInput" rows="3" placeholder="I'm dreaming of... (destination, dates, vibe, must-dos)" required></textarea>
-          <button type="submit" class="chat-send-btn" aria-label="Send message">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
-          </button>
-        </form>
-        <div class="chat-secondary-actions">
-          <button id="workflowNextBtn" type="button" class="btn-secondary"><i data-lucide="zap"></i> Next step</button>
-          <button id="chatMoreActionsBtn" type="button" class="btn-ghost">More actions &#9662;</button>
-        </div>
-        <div id="chatMoreActionsPanel" class="chat-more-panel" hidden>
-          <div class="stack inline-two">
-            <input id="sideTrackTopic" type="text" placeholder="Side-track topic (e.g. craft coffee, live jazz)">
-            <button id="startSideTrackBtn" type="button" class="btn-secondary">Go on side-track</button>
-            <button id="returnMainPlanningBtn" type="button" class="btn-ghost">Back to main planning</button>
-          </div>
-          <div class="stack inline-two">
-            <button id="generateOutlineBtn" type="button" class="btn-secondary">Generate rough outline</button>
-            <button id="suggestFillStrategiesBtn" type="button" class="btn-secondary">Suggest ways to fill gaps</button>
-            <button id="showUnderstandingBtn" type="button" class="btn-ghost">Show understanding snapshot</button>
-          </div>
-        </div>
-        <div id="workflowGuide" class="memory-summary"></div>
-        <div id="conversationTranscript" class="conversation"></div>
-        <div id="conversationInsights" class="memory-summary"></div>
-        <h3 class="subheader">Soft-added POIs (tentative)</h3>
-        <ul id="softPoiList" class="list"></ul>
-      </section>
-
-      <section class="card" data-tab-panel="start">
-        <h2><i data-lucide="map-pin" class="heading-icon"></i> Locked-in bookings</h2>
-        <p class="hint">Flights, hotels, tickets — the stuff that can't move.</p>
-        <form id="hardPointForm" class="stack">
-          <label>
-            Title
-            <input id="hpTitle" name="title" type="text" placeholder="Flight AZ404" required>
-          </label>
-          <label>
-            Type
-            <select id="hpType" name="type">
-              <option value="flight">Flight</option>
-              <option value="train">Train</option>
-              <option value="hotel">Hotel</option>
-              <option value="tour">Booked Tour</option>
-              <option value="meeting">Meeting</option>
-              <option value="no-planning">No planning block</option>
-            </select>
-          </label>
-          <label>
-            Date/Time Start
-            <input id="hpStart" name="start" type="datetime-local" required>
-          </label>
-          <label>
-            Location
-            <input id="hpLocation" name="location" type="text" placeholder="Rome Fiumicino Airport" required>
-          </label>
-          <div id="hpMoreFields" hidden>
-            <label>
-              Date/Time End
-              <input id="hpEnd" name="end" type="datetime-local">
-            </label>
-            <label>
-              Booking Ref
-              <input id="hpRef" name="bookingRef" type="text" placeholder="ABC123">
-            </label>
-            <label>
-              Notes
-              <textarea id="hpNotes" name="notes" rows="2" placeholder="Terminal 3, arrive 2h early"></textarea>
-            </label>
-          </div>
-          <div class="hp-form-actions">
-            <button type="submit">Add hard point</button>
-            <button id="hpToggleMore" type="button" class="btn-ghost">More details &#9662;</button>
-          </div>
-        </form>
-        <ul id="hardPointList" class="list"></ul>
-      </section>
-
-      <section class="card" data-tab-panel="explore">
-        <h2>Route Node Sets (Main Stops)</h2>
-        <p class="hint">Create alternative node sets and activate one or combine multiple sets.</p>
-        <form id="routeSetForm" class="stack">
-          <label>
-            Set name
-            <input id="routeSetName" type="text" placeholder="Cultural route set" required>
-          </label>
-          <label>
-            Description
-            <input id="routeSetDescription" type="text" placeholder="Museums + architecture path">
-          </label>
-          <button type="submit">Create route set</button>
-        </form>
-
-        <form id="routeNodeForm" class="stack">
-          <label>
-            Add node to set
-            <select id="routeNodeSet"></select>
-          </label>
-          <label>
-            Node title
-            <input id="routeNodeTitle" type="text" placeholder="Montmartre district" required>
-          </label>
-          <label>
-            Node type
-            <select id="routeNodeType">
-              <option value="city-hub">City hub</option>
-              <option value="district">District</option>
-              <option value="region-stop">Region stop</option>
-              <option value="main-location">Main location</option>
-              <option value="trip">Trip node</option>
-            </select>
-          </label>
-          <label>
-            Location
-            <input id="routeNodeLocation" type="text" placeholder="Paris, France" required>
-          </label>
-          <label>
-            Planned time (optional)
-            <input id="routeNodeStart" type="datetime-local">
-          </label>
-          <label>
-            Notes
-            <input id="routeNodeNotes" type="text" placeholder="Great base for museums and bars">
-          </label>
-          <button type="submit">Add route node</button>
-        </form>
-        <ul id="routeSetList" class="list"></ul>
-      </section>
-
-      <section class="card" data-tab-panel="explore">
-        <h2>Two-Level Search (Route + Details)</h2>
-        <p class="hint">Search and combine route-level nodes + individual places/events together.</p>
-        <form id="unifiedSearchForm" class="stack">
-          <label>
-            Query
-            <input id="unifiedQuery" type="text" placeholder="hikes, bars, museums and architecture around active route nodes" required>
-          </label>
-          <label>
-            Anchor city/area
-            <input id="unifiedLocation" type="text" placeholder="Paris" required>
-          </label>
-          <label>
-            Date (optional)
-            <input id="unifiedDate" type="date">
-          </label>
-          <label>
-            Radius (km)
-            <input id="unifiedRadius" type="number" min="1" max="180" value="35">
-          </label>
-          <label class="checkbox-inline">
-            <input id="unifiedUseLlm" type="checkbox">
-            Blend LLM results (if enabled in LLM settings)
-          </label>
-          <button type="submit">Run combined search</button>
-        </form>
-        <div class="results-grid">
-          <div>
-            <h3 class="subheader">Route-level node candidates</h3>
-            <div id="unifiedRouteResults" class="results"></div>
-          </div>
-          <div>
-            <h3 class="subheader">Detail places/events</h3>
-            <div id="unifiedDetailResults" class="results"></div>
-          </div>
-        </div>
-      </section>
-
-      <section class="card" data-tab-panel="explore">
-        <h2>Find Main Locations & Trip Ideas</h2>
-        <form id="placeForm" class="stack">
-          <label>
-            City / Area
-            <input id="placeLocation" name="placeLocation" type="text" placeholder="Paris" required>
-          </label>
-          <label>
-            Search mode
-            <select id="placeMode" name="placeMode">
-              <option value="all">Main locations + trips</option>
-              <option value="main">Main locations only</option>
-              <option value="trip">Trips only</option>
-            </select>
-          </label>
-          <label>
-            Radius (km)
-            <input id="placeRadius" name="placeRadius" type="number" min="1" max="150" value="25">
-          </label>
-          <label>
-            Interleave time (optional)
-            <input id="placeInterleaveTime" name="placeInterleaveTime" type="datetime-local">
-          </label>
-          <button type="submit">Find main locations and trips</button>
-        </form>
-        <div id="placeResults" class="results"></div>
-      </section>
-
-      <section class="card" data-tab-panel="explore">
-        <h2>LLM Search (Natural Language)</h2>
-        <p class="hint">Use natural language to discover interleavable locations, events, and trips.</p>
-        <form id="llmConfigForm" class="stack">
-          <label>
-            Provider
-            <select id="llmProvider">
-              <option value="openai-compatible" selected>OpenAI-compatible</option>
-              <option value="azure-openai">Azure OpenAI</option>
-            </select>
-          </label>
-          <label>
-            API Endpoint
-            <input id="llmApiEndpoint" type="url" placeholder="https://openrouter.ai/api/v1/chat/completions or https://<resource>.openai.azure.com/">
-          </label>
-          <label>
-            Model / Deployment fallback
-            <input id="llmModel" type="text" placeholder="openai/gpt-5-mini">
-          </label>
-          <label>
-            Azure Deployment (only for Azure provider)
-            <input id="llmDeployment" type="text" placeholder="mini-nano-5-2-chat">
-          </label>
-          <label>
-            Azure API Version (only for Azure provider)
-            <input id="llmApiVersion" type="text" placeholder="2025-01-01-preview">
-          </label>
-          <label>
-            API Key
-            <input id="llmApiKey" type="password" placeholder="provider key">
-          </label>
-          <label class="checkbox-inline">
-            <input id="llmEnabled" type="checkbox">
-            Enable LLM search
-          </label>
-          <button type="submit">Save LLM settings</button>
-        </form>
-
-        <form id="llmSearchForm" class="stack">
-          <label>
-            Ask the planner
-            <textarea id="llmQuery" rows="3" placeholder="Find iconic locations by day and live music events by night between my hard points." required></textarea>
-          </label>
-          <label>
-            Anchor city/area (optional)
-            <input id="llmSearchLocation" type="text" placeholder="Paris">
-          </label>
-          <label>
-            Target date (optional)
-            <input id="llmSearchDate" type="date">
-          </label>
-          <label>
-            Results count
-            <input id="llmResultCount" type="number" min="1" max="20" value="8">
-          </label>
-          <button type="submit">Run LLM search</button>
-        </form>
-        <div id="llmSearchResults" class="results"></div>
-      </section>
-
-      <section class="card" data-tab-panel="plan">
-        <h2>Route Comparison</h2>
-        <form id="routeCompareForm" class="stack">
-          <label>
-            Mode
-            <select id="routeMode" name="routeMode">
-              <option value="point-to-point">Compare two hard points</option>
-              <option value="whole-trip">Compare whole hard-point route</option>
-            </select>
-          </label>
-          <label>
-            Start hard point
-            <select id="routeOrigin" name="routeOrigin"></select>
-          </label>
-          <label>
-            End hard point
-            <select id="routeDestination" name="routeDestination"></select>
-          </label>
-          <button type="submit">Compare routes</button>
-        </form>
-        <div id="routeResults" class="results"></div>
-      </section>
-
-      <section class="card" data-tab-panel="explore">
-        <h2>Find Events & Local Moments</h2>
-        <form id="eventForm" class="stack">
-          <label>
-            City / Area
-            <input id="eventLocation" name="eventLocation" type="text" placeholder="Paris" required>
-          </label>
-          <label>
-            Date
-            <input id="eventDate" name="eventDate" type="date" required>
-          </label>
-          <label>
-            Radius (km)
-            <input id="eventRadius" name="eventRadius" type="number" min="1" max="100" value="15">
-          </label>
-          <label>
-            Interleave time (optional)
-            <input id="eventInterleaveTime" name="eventInterleaveTime" type="datetime-local">
-          </label>
-          <button type="submit">Find events</button>
-        </form>
-        <div id="eventResults" class="results"></div>
-      </section>
-    </aside>
-
-    <section class="workspace">
-      <section class="card start-overview-card" data-tab-panel="start">
-        <h2><i data-lucide="globe" class="heading-icon"></i> Your trip so far</h2>
-        <div class="overview-steps">
-          <span class="overview-step is-active" data-step="chat"><i data-lucide="message-circle"></i> Chat it</span>
-          <span class="overview-step" data-step="anchor"><i data-lucide="map-pin"></i> Lock anchors</span>
-          <span class="overview-step" data-step="refine"><i data-lucide="compass"></i> Explore &amp; refine</span>
-        </div>
-        <div id="chatFlowSummary" class="memory-summary"></div>
-        <div id="startOutputSummary" class="memory-summary"></div>
-        <div class="overview-actions">
-          <button id="goPlanBtn" type="button"><i data-lucide="map"></i> See the plan</button>
-          <button id="goPlanFromOutputBtn" type="button" class="btn-secondary">Refine on map</button>
-          <button id="goSettingsBtn" type="button" class="btn-ghost"><i data-lucide="sliders-horizontal"></i> Advanced</button>
-        </div>
-      </section>
-
-      <section id="visualBoardCard" class="card visual-board-card" data-tab-panel="plan">
-        <div class="section-header">
-          <h2><i data-lucide="palette" class="heading-icon"></i> Trip Vibe Board</h2>
-          <button id="toggleVisualBoardBtn" type="button">Hide visuals</button>
-        </div>
-        <div id="visualBoardBody" class="visual-board-body">
-          <article class="visual-group">
-            <h3 class="subheader">Vibe</h3>
-            <div id="visualVibeTags" class="chip-list visual-vibe-tags"></div>
-            <div id="possibleVisuals" class="possible-board"></div>
-          </article>
-          <article class="visual-group">
-            <h3 class="subheader">Logistics</h3>
-            <div id="phaseVisual" class="phase-visual"></div>
-            <div id="routeStripVisual" class="route-strip"></div>
-            <div id="activityMixVisual" class="mix-board"></div>
-            <div id="tripPulseVisual" class="pulse-board"></div>
-          </article>
-        </div>
-      </section>
-
-      <nav id="mobilePlanTabs" class="mobile-plan-tabs" aria-label="Mobile plan view switcher">
-        <button id="mobilePlanList" type="button" data-mobile-plan-view="list" class="is-active" aria-pressed="true">List</button>
-        <button id="mobilePlanMap" type="button" data-mobile-plan-view="map" aria-pressed="false">Map</button>
+    <!-- LEFT: Sidebar with tabs -->
+    <section class="panel panel-sidebar" data-panel="plan">
+      <nav class="sidebar-tabs">
+        <button type="button" class="sidebar-tab is-active" data-sidebar="suggestions">Suggestions</button>
+        <button type="button" class="sidebar-tab" data-sidebar="itinerary">Itinerary</button>
+        <button type="button" class="sidebar-tab" data-sidebar="gaps">Gaps</button>
       </nav>
 
-      <section class="card map-card premium-panel" data-tab-panel="plan">
-        <h2><i data-lucide="map" class="heading-icon"></i> Trip Map</h2>
-        <div id="map" aria-label="Trip map"></div>
-        <div id="mapLegend" class="map-legend"></div>
-      </section>
-
-      <section class="card itinerary-card premium-panel" data-tab-panel="plan">
-        <h2><i data-lucide="list-ordered" class="heading-icon"></i> Itinerary</h2>
-        <div id="itineraryList" class="itinerary"></div>
-      </section>
-
-      <section class="card suggestions-card premium-panel" data-tab-panel="plan">
-        <div class="section-header">
-          <h2><i data-lucide="sparkles" class="heading-icon"></i> Picks for you</h2>
-          <button id="refreshSuggestionsBtn" type="button"><i data-lucide="refresh-cw"></i> Refresh</button>
+      <!-- Suggestions tab -->
+      <div class="sidebar-panel" data-sidebar-panel="suggestions">
+        <div class="panel-scroll">
+          <div id="suggestionList" class="suggestions"></div>
         </div>
-        <p class="hint">Rate these so I get better at knowing what you'll love.</p>
-        <form id="customSuggestionForm" class="stack inline">
-          <input id="customSuggestionTitle" type="text" placeholder="Your own idea (rooftop jazz night, secret ramen spot...)" required>
-          <input id="customSuggestionCity" type="text" placeholder="City" required>
-          <input id="customSuggestionTags" type="text" placeholder="tags: music,nightlife">
-          <button type="submit">Add custom suggestion</button>
-        </form>
-        <div id="suggestionList" class="suggestions"></div>
-      </section>
+      </div>
+
+      <!-- Itinerary tab -->
+      <div class="sidebar-panel" data-sidebar-panel="itinerary" hidden>
+        <div class="panel-scroll">
+          <div id="itineraryList" class="itinerary"></div>
+          <details class="collapsible-section">
+            <summary>+ Add booking</summary>
+            <form id="hardPointForm" class="stack">
+              <label>Title <input id="hpTitle" type="text" placeholder="Flight AZ404" required></label>
+              <label>Type
+                <select id="hpType">
+                  <option value="flight">Flight</option>
+                  <option value="train">Train</option>
+                  <option value="hotel">Hotel</option>
+                  <option value="tour">Booked Tour</option>
+                </select>
+              </label>
+              <label>Start <input id="hpStart" type="datetime-local" required></label>
+              <label>Location <input id="hpLocation" type="text" placeholder="Tokyo Narita" required></label>
+              <button type="submit">Add hard point</button>
+            </form>
+          </details>
+          <div id="softPoiSection" class="soft-poi-section" hidden>
+            <h3 class="subheader">Tentative spots</h3>
+            <ul id="softPoiList" class="list compact"></ul>
+          </div>
+          <button id="resetTripBtn" type="button" class="btn-danger" style="margin-top:1rem;width:100%">Reset trip</button>
+        </div>
+      </div>
+
+      <!-- Gaps tab -->
+      <div class="sidebar-panel" data-sidebar-panel="gaps" hidden>
+        <div class="panel-scroll">
+          <div id="tripOverview" class="trip-overview">
+            <div id="gapSummary" class="gap-summary"></div>
+          </div>
+        </div>
+      </div>
     </section>
+
+    <!-- CENTER: Chat panel (main, widest) -->
+    <section class="panel panel-chat" data-panel="chat">
+
+      <!-- Welcome state: centered greeting + input + chips (Claude-style) -->
+      <div id="welcomeBlock" class="welcome-center">
+        <div class="welcome-center-inner">
+          <div class="welcome-logo">
+            <svg viewBox="0 0 24 24" width="40" height="40">
+              <circle cx="12" cy="12" r="9.2" fill="none" stroke="var(--color-brand-500)" stroke-width="1.4"/>
+              <polygon points="12,4.5 14,11 12,10 10,11" fill="var(--color-brand-500)" opacity="0.9"/>
+              <polygon points="12,19.5 10,13 12,14 14,13" fill="var(--color-brand-500)" opacity="0.45"/>
+            </svg>
+          </div>
+          <h1 class="welcome-title">Where to next?</h1>
+          <form id="chatFormWelcome" class="welcome-input-card">
+            <textarea id="chatInputWelcome" rows="1" placeholder="Tell me about your dream trip..."></textarea>
+            <button type="submit" class="welcome-send-btn" aria-label="Send">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
+            </button>
+          </form>
+          <div class="chip-list quick-prompts">
+            <button type="button" class="chip quick-prompt" data-prompt="Going to Japan April 9 to May 1. Staying in Tokyo first 5 nights, then exploring. Love architecture, food, and hiking.">Japan adventure</button>
+            <button type="button" class="chip quick-prompt" data-prompt="Relaxed beach holiday in Southeast Asia, 10 days, good food and snorkeling">Beach getaway</button>
+            <button type="button" class="chip quick-prompt" data-prompt="Weekend city break in Europe, art museums and nightlife">Euro city break</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chat state: scrollable messages + pinned input at bottom -->
+      <div id="chatState" class="chat-state" hidden>
+        <div class="panel-scroll" id="chatScroll">
+          <div id="conversationTranscript" class="conversation"></div>
+        </div>
+        <div class="chat-input-wrapper">
+          <form id="chatForm" class="chat-input-group">
+            <textarea id="chatInput" rows="1" placeholder="Ask anything..."></textarea>
+            <button type="submit" class="chat-send-btn" aria-label="Send">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
+            </button>
+          </form>
+          <div id="graphStatus" class="graph-status"></div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- RIGHT: Map panel -->
+    <section class="panel panel-map" data-panel="plan">
+      <div id="map" class="map-fill"></div>
+    </section>
+
   </main>
 
+  <!-- ===== SETTINGS DRAWER ===== -->
+  <aside id="settingsDrawer" class="settings-drawer" hidden>
+    <div class="drawer-header">
+      <h2>Settings</h2>
+      <button id="closeDrawerBtn" type="button" class="btn-ghost" aria-label="Close">&times;</button>
+    </div>
+    <div class="drawer-scroll">
+
+      <section class="drawer-section">
+        <h3>Session</h3>
+        <label>User ID <input id="userId" type="text" value="default"></label>
+        <label>Trip ID <input id="tripId" type="text" value="default"></label>
+      </section>
+
+      <section class="drawer-section">
+        <h3>Profile</h3>
+        <label>Name <input id="profileName" type="text" placeholder="Alex"></label>
+        <label>Home Base <input id="homeBase" type="text" placeholder="Berlin"></label>
+        <label>Interests <input id="interests" type="text" placeholder="food, art, hiking"></label>
+        <label>Pace
+          <select id="pace">
+            <option value="slow">Slow</option>
+            <option value="balanced" selected>Balanced</option>
+            <option value="fast">Fast</option>
+          </select>
+        </label>
+        <label>Adventurousness
+          <input id="adventurousness" type="range" min="1" max="5" value="3">
+          <span class="range-label"><small>Mainstream</small><small>Hidden gems</small></span>
+        </label>
+      </section>
+
+      <section class="drawer-section">
+        <h3>Trip Context</h3>
+        <div id="tripContextDisplay" class="context-display"><span class="hint">No trip loaded yet</span></div>
+      </section>
+
+      <section class="drawer-section">
+        <h3>What I've Learned About You</h3>
+        <div id="userMemoryDisplay" class="context-display"><span class="hint">No preferences learned yet</span></div>
+      </section>
+
+      <section class="drawer-section">
+        <h3>LLM Configuration</h3>
+        <p class="hint">Set via environment variables on the server: LLM_PROVIDER, LLM_ENDPOINT, LLM_API_KEY, LLM_MODEL</p>
+      </section>
+
+    </div>
+  </aside>
+
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <script src="./app.js" type="module"></script>
-  <script>window.addEventListener("load", function() { if (typeof lucide !== "undefined") lucide.createIcons(); });</script>
+  <script src="./driftplan.js" type="module"></script>
 </body>
 </html>

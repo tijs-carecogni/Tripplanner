@@ -1109,7 +1109,7 @@ function handleSaveExpertSettings(event) {
   interactionController.setPinningEnabled(state.expertSettings.persistentSelection !== false);
   saveState();
   renderAll();
-  setStatus("Expert TripMind settings saved.");
+  setStatus("Expert settings saved.");
 }
 
 function renderTripContextSummary() {
@@ -1159,9 +1159,11 @@ function updateOverviewSteps(hasContext, hasAnchors, hasPlan) {
     if (s === "chat") {
       step.classList.add(hasContext ? "is-done" : "is-active");
     } else if (s === "anchor") {
-      step.classList.add(hasAnchors ? "is-done" : (hasContext ? "is-active" : ""));
+      const cls = hasAnchors ? "is-done" : (hasContext ? "is-active" : null);
+      if (cls) step.classList.add(cls);
     } else if (s === "refine") {
-      step.classList.add(hasPlan ? "is-done" : (hasAnchors ? "is-active" : ""));
+      const cls = hasPlan ? "is-done" : (hasAnchors ? "is-active" : null);
+      if (cls) step.classList.add(cls);
     }
   });
 }
@@ -1307,18 +1309,18 @@ function renderConversation() {
             ${options.map((option) => {
               const feedbackBtns = `
                 <div class="option-feedback-row">
-                  <button type="button" class="btn-love" data-action="option-feedback" data-message-id="${message.id}" data-option-id="${option.id}" data-feedback="love">&#9829; Love</button>
-                  <button type="button" class="btn-maybe" data-action="option-feedback" data-message-id="${message.id}" data-option-id="${option.id}" data-feedback="maybe">~ Maybe</button>
-                  <button type="button" class="btn-no" data-action="option-feedback" data-message-id="${message.id}" data-option-id="${option.id}" data-feedback="no">&#10005; No</button>
+                  <button type="button" class="btn-love" data-action="option-feedback" data-message-id="${message.id}" data-option-id="${option.id}" data-feedback="love" title="Love this — show me more like it">&#9829; Love</button>
+                  <button type="button" class="btn-maybe" data-action="option-feedback" data-message-id="${message.id}" data-option-id="${option.id}" data-feedback="maybe" title="Interesting, but not sure yet">&#8212; Maybe</button>
+                  <button type="button" class="btn-no" data-action="option-feedback" data-message-id="${message.id}" data-option-id="${option.id}" data-feedback="no" title="Not for me — show me less like this">&#10005;</button>
                 </div>
                 <div class="option-add-row">
                   ${option.kind === "outline-block"
                     ? `<button type="button" class="btn-secondary" data-action="option-dive-block" data-message-id="${message.id}" data-option-id="${option.id}">Dive in</button>`
                     : option.kind === "strategy"
                     ? `<button type="button" class="btn-secondary" data-action="option-use-strategy" data-message-id="${message.id}" data-option-id="${option.id}">Use strategy</button>`
-                    : `<button type="button" class="btn-secondary" data-action="option-soft-poi" data-message-id="${message.id}" data-option-id="${option.id}">+ Add</button>
-                       <button type="button" class="btn-ghost" data-action="option-interleave" data-message-id="${message.id}" data-option-id="${option.id}">Interleave</button>
-                       <button type="button" class="btn-ghost" data-action="option-lock" data-message-id="${message.id}" data-option-id="${option.id}">Lock</button>`
+                    : `<button type="button" class="btn-secondary" data-action="option-soft-poi" data-message-id="${message.id}" data-option-id="${option.id}" title="Add as a candidate — can be rearranged or dropped">+ Consider</button>
+                       <button type="button" class="btn-ghost" data-action="option-interleave" data-message-id="${message.id}" data-option-id="${option.id}" title="Weave into your existing schedule">Interleave</button>
+                       <button type="button" class="btn-ghost" data-action="option-lock" data-message-id="${message.id}" data-option-id="${option.id}" title="Lock into your trip — this one's definite">&#128274; Must-do</button>`
                   }
                 </div>`;
               return `
@@ -1439,8 +1441,8 @@ function renderSoftPois() {
         ${poi.notes ? `<div class="meta">${htmlEscape(poi.notes)}</div>` : ""}
         <div class="option-actions">
           <div class="option-add-row">
-            <button type="button" class="btn-secondary" data-action="poi-interleave" data-id="${poi.id}">+ Add</button>
-            <button type="button" class="btn-ghost" data-action="poi-lock" data-id="${poi.id}">Lock</button>
+            <button type="button" class="btn-secondary" data-action="poi-interleave" data-id="${poi.id}" title="Add to your trip schedule">+ Add to trip</button>
+            <button type="button" class="btn-ghost" data-action="poi-lock" data-id="${poi.id}" title="Lock in — this one's definite">&#128274; Must-do</button>
             <button type="button" class="btn-no" data-action="poi-remove" data-id="${poi.id}">Remove</button>
           </div>
           <div class="option-feedback-row">
@@ -2638,8 +2640,8 @@ function renderUnifiedResults() {
       .map((item) => {
         const actions = `
           <div class="option-add-row">
-            <button type="button" class="btn-secondary" data-action="add-route-node" data-id="${item.id}">+ Add to set</button>
-            <button type="button" class="btn-ghost" data-action="lock-route-node" data-id="${item.id}">Lock</button>
+            <button type="button" class="btn-secondary" data-action="add-route-node" data-id="${item.id}" title="Add to your trip schedule">+ Add to trip</button>
+            <button type="button" class="btn-ghost" data-action="lock-route-node" data-id="${item.id}" title="Lock in — this one's definite">&#128274; Must-do</button>
           </div>
           <div class="option-feedback-row">
             <button type="button" class="btn-rate" data-action="rate-route-node" data-id="${item.id}" data-rating="4">4</button>
@@ -2661,8 +2663,8 @@ function renderUnifiedResults() {
     .map((item) => {
       const actions = `
         <div class="option-add-row">
-          <button type="button" class="btn-secondary" data-action="interleave-detail" data-id="${item.id}">+ Add</button>
-          <button type="button" class="btn-ghost" data-action="lock-detail" data-id="${item.id}">Lock</button>
+          <button type="button" class="btn-secondary" data-action="interleave-detail" data-id="${item.id}" title="Add to your trip schedule">+ Add to trip</button>
+          <button type="button" class="btn-ghost" data-action="lock-detail" data-id="${item.id}" title="Lock in — this one's definite">&#128274; Must-do</button>
         </div>
         <div class="option-feedback-row">
           <button type="button" class="btn-rate" data-action="rate-detail" data-id="${item.id}" data-rating="3">3</button>
@@ -3491,9 +3493,9 @@ function renderPlaceResults() {
     .map((item) => {
       const actions = `
         <div class="option-add-row">
-          <button type="button" class="btn-secondary" data-action="interleave-place" data-id="${item.id}">+ Add</button>
-          <button type="button" class="btn-ghost" data-action="soft-place" data-id="${item.id}">Soft add</button>
-          <button type="button" class="btn-ghost" data-action="lock-place" data-id="${item.id}">Lock</button>
+          <button type="button" class="btn-secondary" data-action="interleave-place" data-id="${item.id}" title="Add to your trip schedule">+ Add to trip</button>
+          <button type="button" class="btn-ghost" data-action="soft-place" data-id="${item.id}" title="Save as a candidate — flexible, can be dropped">+ Consider</button>
+          <button type="button" class="btn-ghost" data-action="lock-place" data-id="${item.id}" title="Lock in — this one's definite">&#128274; Must-do</button>
         </div>
         <div class="option-feedback-row">
           <button type="button" class="btn-rate" data-action="rate-place" data-id="${item.id}" data-rating="3">3</button>
@@ -4132,9 +4134,9 @@ function renderLlmResults() {
     .map((item) => {
       const actions = `
         <div class="option-add-row">
-          <button type="button" class="btn-secondary" data-action="interleave-llm" data-id="${item.id}">+ Add</button>
-          <button type="button" class="btn-ghost" data-action="soft-llm" data-id="${item.id}">Soft add</button>
-          <button type="button" class="btn-ghost" data-action="lock-llm" data-id="${item.id}">Lock</button>
+          <button type="button" class="btn-secondary" data-action="interleave-llm" data-id="${item.id}" title="Add to your trip schedule">+ Add to trip</button>
+          <button type="button" class="btn-ghost" data-action="soft-llm" data-id="${item.id}" title="Save as a candidate — flexible, can be dropped">+ Consider</button>
+          <button type="button" class="btn-ghost" data-action="lock-llm" data-id="${item.id}" title="Lock in — this one's definite">&#128274; Must-do</button>
         </div>
         <div class="option-feedback-row">
           <button type="button" class="btn-rate" data-action="rate-llm" data-id="${item.id}" data-rating="3">3</button>
@@ -4266,9 +4268,9 @@ function renderEventResults() {
       const item = { ...ev, description: ev.venue || "Venue pending" };
       const actions = `
         <div class="option-add-row">
-          <button type="button" class="btn-secondary" data-action="interleave-event" data-id="${ev.id}">+ Add</button>
-          <button type="button" class="btn-ghost" data-action="soft-event" data-id="${ev.id}">Soft add</button>
-          <button type="button" class="btn-ghost" data-action="pin-event" data-id="${ev.id}">Pin</button>
+          <button type="button" class="btn-secondary" data-action="interleave-event" data-id="${ev.id}" title="Add to your trip schedule">+ Add to trip</button>
+          <button type="button" class="btn-ghost" data-action="soft-event" data-id="${ev.id}" title="Save as a candidate — flexible, can be dropped">+ Consider</button>
+          <button type="button" class="btn-ghost" data-action="pin-event" data-id="${ev.id}" title="Lock in — this one's definite">&#128274; Must-do</button>
         </div>
         <div class="option-feedback-row">
           <button type="button" class="btn-rate" data-action="rate-event" data-id="${ev.id}" data-rating="3">3</button>
@@ -4736,7 +4738,7 @@ function createStopMarkerIcon(type) {
   else if (token.includes("meeting")) iconName = "briefcase";
   else if (token.includes("no-planning")) iconName = "moon";
   return L.divIcon({
-    className: "",
+    className: "div-icon-reset",
     html: `<span class="stop-marker stop-${iconName}">${iconSvg(iconName, "map-icon")}</span>`,
     iconSize: [30, 30],
     iconAnchor: [15, 15],
@@ -5024,7 +5026,7 @@ function renderMap() {
       if (mid) {
         transportMarker = L.marker(mid, {
           icon: L.divIcon({
-            className: "",
+            className: "div-icon-reset",
             html: `<span class="transport-marker transport-${transport.css}">${iconSvg(transport.iconName, "map-icon")}</span>`,
             iconSize: [26, 26],
             iconAnchor: [13, 13],
@@ -5388,7 +5390,7 @@ function init() {
   setDefaultEventDate();
   ensureConversationInitialized();
   renderAll();
-  setStatus("MindTrip planner ready. Start in chat, then anchor hard points and refine recommendations.");
+  setStatus("Driftplan ready. Start in chat, then anchor hard points and refine recommendations.");
   if (typeof lucide !== "undefined") lucide.createIcons();
   void loadCloudState({ initial: true });
 }
