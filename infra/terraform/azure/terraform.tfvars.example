@@ -10,9 +10,12 @@ container_environment_name = "tripmind-demo-env"
 create_acr = true
 acr_name   = "youruniqueregistryname" # globally unique, alphanumeric only, 5-50 chars
 
-# First apply: use a public placeholder so the app can pull; push your image, then apply again.
-# Example after CI push: "<acr_name>.azurecr.io/tripplanner:latest"
-container_image = "docker.io/library/nginx:alpine"
+# First apply: public placeholder + matching port; push tripplanner to ACR, then set image and port 8787.
+container_image       = "docker.io/library/nginx:alpine"
+ingress_target_port   = 80
+# Second apply after image exists in ACR:
+# container_image     = "<acr_name>.azurecr.io/tripplanner:latest"
+# ingress_target_port = 8787
 
 # create_acr = false
 # acr_name = "myexistingacr"

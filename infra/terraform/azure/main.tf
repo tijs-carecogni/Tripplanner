@@ -88,7 +88,7 @@ resource "azurerm_container_app" "this" {
 
   ingress {
     external_enabled = true
-    target_port      = 8787
+    target_port      = var.ingress_target_port
     transport        = "auto"
     traffic_weight {
       latest_revision = true
@@ -110,7 +110,7 @@ resource "azurerm_container_app" "this" {
 
       env {
         name  = "PORT"
-        value = "8787"
+        value = tostring(var.ingress_target_port)
       }
 
       env {

@@ -44,6 +44,12 @@ variable "container_memory" {
   default     = "1Gi"
 }
 
+variable "ingress_target_port" {
+  description = "Ingress port for the container (8787 for this app). Use 80 for a placeholder image like nginx on first apply, then set back to 8787 when using the real image."
+  type        = number
+  default     = 8787
+}
+
 variable "acr_name" {
   description = "Globally unique name of the Azure Container Registry (created if create_acr is true)."
   type        = string
