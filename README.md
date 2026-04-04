@@ -180,10 +180,29 @@ For production-grade durable server-side saves, mount Azure Files and set `TRIPM
 
 ### GitHub Actions deploy (push to `main`)
 
-The workflow `.github/workflows/deploy.yml` logs in with **azure/login@v3**, then builds and pushes to ACR and updates the Container App. If **Log in to Azure** fails:
+The workflow `.github/workflows/deploy.yml` logs in with **azure/login@v3**, pushes the image to **Azure Container Registry (ACR)**, then runs `az containerapp update` on a **Container App** in a **resource group**. If your Azure resources use other names or regions (for example **`wagenaarlabs_tripplanner_rg`** in **Sweden Central**), set the repository **Variables** below so CI targets the same subscription and resources as the portal.
 
-1. **OIDC (recommended):** Add secrets `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, and `AZURE_SUBSCRIPTION_ID`. On that app registration in Microsoft Entra ID, add a **federated credential** for GitHub Actions targeting this repository (and branch `main` or a [deployment environment](https://docs.github.com/actions/deployment/targeting-different-environments/using-environments-for-deployment)). See [Configure OIDC with Azure](https://docs.github.com/actions/security-for-github-actions/security-hardening-your-deployments/configuring-openid-connect-in-azure).
-2. **Service principal secret (fallback):** If `AZURE_CLIENT_ID` is not set as a secret, the workflow uses `AZURE_CREDENTIALS`. That value must be JSON with **camelCase** keys exactly as: `clientId`, `clientSecret`, `subscriptionId`, `tenantId`. Wrong key names, a rotated/expired secret, or a principal without rights on the subscription or ACR will produce the same login error.
+#### Repository Variables (deployment target)
+
+GitHub: **Settings → Secrets and variables → Actions → Variables**.
+
+| Variable | Example | Purpose |
+|----------|---------|---------|
+| `AZURE_RESOURCE_GROUP` | `wagenaarlabs_tripplanner_rg` | Resource group that contains the Container App |
+| `AZURE_CONTAINER_APP` | *(your app name in that RG)* | App to update |
+| `ACR_NAME` | *(registry name only, no `.azurecr.io`)* | `az acr login` and image host |
+| `ACR_IMAGE_NAME` | `tripplanner` | Image repository inside ACR |
+
+If unset, defaults remain `tripmind-demo-rg`, `tripmind-demo`, `tripminddemoacr`, and `tripplanner`. The workflow prints the resolved values in the first step for easier log debugging. **ACR and the Container App can be in different resource groups**; `AZURE_RESOURCE_GROUP` must be the group that contains the Container App.
+
+#### Secrets (authentication)
+
+1. **OIDC (recommended):** Secrets `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` (subscription ID from the portal, e.g. under *Abonnement*). On the app registration, add a **federated credential** for GitHub Actions for this repo (branch `main` or an [environment](https://docs.github.com/actions/deployment/targeting-different-environments/using-environments-for-deployment)). See [Configure OIDC with Azure](https://docs.github.com/actions/security-for-github-actions/security-hardening-your-deployments/configuring-openid-connect-in-azure).
+2. **Service principal secret (fallback):** If `AZURE_CLIENT_ID` is not set as a secret, the workflow uses `AZURE_CREDENTIALS` — JSON with **camelCase** keys: `clientId`, `clientSecret`, `subscriptionId`, `tenantId`. Wrong shape, expired secret, or wrong subscription ID causes login failure.
+
+#### RBAC (after login succeeds)
+
+The CI identity needs **AcrPush** (or equivalent) on the registry and permission to update the Container App (for example **Contributor** on the RG that holds the app). If push or `containerapp update` fails, add the missing role in Azure IAM.
 
 ### Azure via Terraform (recommended when `az` CLI is unavailable)
 
