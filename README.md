@@ -159,6 +159,8 @@ Then open `http://localhost:8787`.
 
 ### Azure (Container Apps)
 
+The **GitHub Actions deploy workflow does not create Azure resources** (no Container App, no ACR, no Container Apps environment). It assumes they already exist and only **updates** the app image. If your resource group is **empty** or only has the RG shell, create infrastructure first with **Terraform** (`infra/terraform/azure/`) or **`scripts/deploy_azure_containerapp.sh`**, then align GitHub Variables with the real names.
+
 You can deploy directly to Azure with one script:
 
 ```bash
