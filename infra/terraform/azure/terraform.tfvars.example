@@ -1,8 +1,22 @@
-resource_group_name         = "tripmind-demo-rg"
-location                    = "westeurope"
-container_app_name          = "tripmind-demo"
-container_environment_name  = "tripmind-demo-env"
+# Set create_resource_group = false if the group already exists (empty RG in portal).
+create_resource_group = true
+resource_group_name   = "tripmind-demo-rg"
+location              = "westeurope"
 
-# Use an image you publish from this repo, for example:
-# ghcr.io/<github-user-or-org>/tripplanner:latest
-container_image = "ghcr.io/your-org-or-user/tripplanner:latest"
+container_app_name         = "tripmind-demo"
+container_environment_name = "tripmind-demo-env"
+
+# Create ACR in the same RG, or set create_acr = false and point at an existing registry.
+create_acr = true
+acr_name   = "youruniqueregistryname" # globally unique, alphanumeric only, 5-50 chars
+
+# First apply: public placeholder + matching port; push tripplanner to ACR, then set image and port 8787.
+container_image       = "docker.io/library/nginx:alpine"
+ingress_target_port   = 80
+# Second apply after image exists in ACR:
+# container_image     = "<acr_name>.azurecr.io/tripplanner:latest"
+# ingress_target_port = 8787
+
+# create_acr = false
+# acr_name = "myexistingacr"
+# acr_resource_group_name = "" # or another RG name if ACR is elsewhere

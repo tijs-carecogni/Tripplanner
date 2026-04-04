@@ -5,7 +5,12 @@ output "container_app_url" {
 
 output "resource_group_name" {
   description = "Resource group used by this deployment."
-  value       = azurerm_resource_group.this.name
+  value       = local.resource_group_name
+}
+
+output "acr_login_server" {
+  description = "Login server for the container registry used by the app."
+  value       = local.acr_login_server
 }
 
 output "storage_account_name" {
