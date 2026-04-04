@@ -178,6 +178,13 @@ bash ./scripts/deploy_azure_containerapp.sh
 This creates/updates an Azure Container App from this repo and prints a public HTTPS URL.
 For production-grade durable server-side saves, mount Azure Files and set `TRIPMIND_DATA_DIR`.
 
+### GitHub Actions deploy (push to `main`)
+
+The workflow `.github/workflows/deploy.yml` logs in with **azure/login@v3**, then builds and pushes to ACR and updates the Container App. If **Log in to Azure** fails:
+
+1. **OIDC (recommended):** Add secrets `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, and `AZURE_SUBSCRIPTION_ID`. On that app registration in Microsoft Entra ID, add a **federated credential** for GitHub Actions targeting this repository (and branch `main` or a [deployment environment](https://docs.github.com/actions/deployment/targeting-different-environments/using-environments-for-deployment)). See [Configure OIDC with Azure](https://docs.github.com/actions/security-for-github-actions/security-hardening-your-deployments/configuring-openid-connect-in-azure).
+2. **Service principal secret (fallback):** If `AZURE_CLIENT_ID` is not set as a secret, the workflow uses `AZURE_CREDENTIALS`. That value must be JSON with **camelCase** keys exactly as: `clientId`, `clientSecret`, `subscriptionId`, `tenantId`. Wrong key names, a rotated/expired secret, or a principal without rights on the subscription or ACR will produce the same login error.
+
 ### Azure via Terraform (recommended when `az` CLI is unavailable)
 
 If your environment does not have Azure CLI, use Terraform directly:
